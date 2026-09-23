@@ -7,6 +7,8 @@ export const BROWSER_UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 site-pipeline";
 export const BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
+const STAGING_ROBOTS = "User-agent: *\nDisallow: /\n"; // what worker/index.js serves when SITE_ENV=staging
+
 const varyHasAccept = (res) =>
   (res.headers.get("vary") || "").split(",").some((v) => v.trim().toLowerCase() === "accept");
 
@@ -51,7 +53,7 @@ export async function checkNegotiationLive(base, { fetchImpl = fetch, headers = 
 
 /**
  * Post-deploy smoke: pages return 200, robots behaviour matches the environment, negotiation works.
- * Production must NOT be noindex - that guards against staging config leaking into production.
+ * Production must NOT serve the staging disallow-all robots.txt - that guards against staging config leaking.
  */
 export async function checkSmoke(base, { pages = ["/"], staging = false, fetchImpl = fetch, headers = {} } = {}) {
   const failures = [];
@@ -60,18 +62,18 @@ export async function checkSmoke(base, { pages = ["/"], staging = false, fetchIm
     const res = await request(fetchImpl, url, { headers });
     if (res.status !== 200) {
       failures.push(fail("smoke", url, `returned ${res.status}`));
-      continue;
     }
-    const robotsTag = (res.headers.get("x-robots-tag") || "").toLowerCase();
-    if (staging && !robotsTag.includes("noindex")) failures.push(fail("smoke", url, "staging response is not X-Robots-Tag noindex"));
-    if (!staging && robotsTag.includes("noindex")) failures.push(fail("smoke", url, `production response is noindex ("${robotsTag}")`));
   }
+  // The environment is judged by robots.txt, which the Worker writes, not by X-Robots-Tag:
+  // Cloudflare forces x-robots-tag: noindex onto every workers.dev preview URL (W3BBK pilot).
   const robotsUrl = new URL("/robots.txt", base).toString();
   const robots = await request(fetchImpl, robotsUrl, { accept: "text/plain", headers });
   if (robots.status !== 200) {
     failures.push(fail("smoke", robotsUrl, `returned ${robots.status}`));
-  } else if (staging && (await robots.text()) !== "User-agent: *\nDisallow: /\n") {
-    failures.push(fail("smoke", robotsUrl, "staging robots.txt is not the disallow-all file"));
+  } else {
+    const disallowAll = (await robots.text()) === STAGING_ROBOTS;
+    if (staging && !disallowAll) failures.push(fail("smoke", robotsUrl, "staging robots.txt is not the disallow-all file"));
+    if (!staging && disallowAll) failures.push(fail("smoke", robotsUrl, "production robots.txt is the staging disallow-all file"));
   }
   failures.push(...(await checkNegotiationLive(base, { fetchImpl, headers })));
   return failures;
