@@ -78,8 +78,9 @@ jobs:
         env:
           FAILED: ${{ steps.sectxt.outcome == 'failure' }}
         run: |
-          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly security.txt failing" --file sectxt.txt \
-            $([ "$FAILED" = true ] && echo --failing)
+          extra=()
+          if [ "$FAILED" = true ]; then extra+=(--failing); fi
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly security.txt failing" --file sectxt.txt "${extra[@]}"
 
       - name: Build lychee exclude args
         run: |
@@ -104,5 +105,6 @@ jobs:
         env:
           FAILED: ${{ steps.lychee.outputs.exit_code != '0' }}
         run: |
-          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly link check failing" --file lychee.md \
-            $([ "$FAILED" = true ] && echo --failing)
+          extra=()
+          if [ "$FAILED" = true ]; then extra+=(--failing); fi
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly link check failing" --file lychee.md "${extra[@]}"

@@ -166,9 +166,10 @@ jobs:
         env:
           APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'approved-visual-change') }}
         run: |
+          extra=()
+          if [ "$APPROVED" = true ]; then extra+=(--approved); fi
           node .site-pipeline/checks/cli.mjs visual --baseline "$BASELINE" --candidate "$CANDIDATE" \
-            --pages "$VISUAL_PAGES" --mask "$VISUAL_MASK" --out visual \
-            $([ "$APPROVED" = "true" ] && echo --approved) --json results/30-visual.json
+            --pages "$VISUAL_PAGES" --mask "$VISUAL_MASK" --out visual "${extra[@]}" --json results/30-visual.json
 
       - name: Lighthouse
         continue-on-error: true

@@ -114,8 +114,9 @@ jobs:
 
       - name: Smoke the new version before it takes traffic
         run: |
-          node .site-pipeline/checks/cli.mjs smoke --base "$PREVIEW" --pages "$SMOKE_PAGES" \
-            $([ "$ENVIRONMENT" = staging ] && echo --staging)
+          extra=()
+          if [ "$ENVIRONMENT" = staging ]; then extra+=(--staging); fi
+          node .site-pipeline/checks/cli.mjs smoke --base "$PREVIEW" --pages "$SMOKE_PAGES" "${extra[@]}"
 
       - name: Promote to 100%
         env:
@@ -160,5 +161,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FAILED: ${{ job.status != 'success' }}
         run: |
-          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: ${ENVIRONMENT} deploy failing" \
-            $([ "$FAILED" = true ] && echo --failing)
+          extra=()
+          if [ "$FAILED" = true ]; then extra+=(--failing); fi
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: ${ENVIRONMENT} deploy failing" "${extra[@]}"
