@@ -3,7 +3,7 @@
 > Tactical work queue. Items flow: Backlog → Planned → In Development → Completed.
 > /writing-plans moves items into Planned. /handoff moves them through to Completed.
 
-_Updated: 2026-09-23_
+_Updated: 2026-09-23 (after pilot)_
 
 ---
 
@@ -13,14 +13,14 @@ _Updated: 2026-09-23_
 
 ## Planned
 
-- [ ] **Phase 0 + W3BBK.us pilot** — shared Worker, checks, reusable workflows; W3BBK on GitHub Actions → Workers — [plan](../plans/2026-09-23-site-pipeline-phase0-w3bbk-pilot.md)
 
 ---
 
 ## Backlog
 
 ### High Priority
-- [ ] **Wave 2: BBKing.net** — config-only port of the pilot; tag `v1.0.0` after _(Source: spec rollout)_
+- [ ] **Release v0.1.7 to W3BBK** — review fixes (`indexable` check, deploy branch guard) are on `fix/review-pilot`, not yet released _(Source: pilot final review)_
+- [ ] **Wave 2: BBKing.net** — config-only port of the pilot; setup checklist must include the Preview URLs toggle and a manual Access-redirect check; tag `v1.0.0` after _(Source: spec rollout, pilot findings)_
 - [ ] **Wave 3: KingFamily** — adds Formspree offline check + weekly canary _(Source: spec rollout)_
 - [ ] **Wave 4: BrianBK.ing + JillK.ing** — adds résumé PDF build step; fix `_headers` `kingfamily.info` Links; delete stale `brianbking.pages.dev` _(Source: spec rollout)_
 - [ ] **Wave 5: MasonBK.ing** — Pages → Workers in the M@sonBK.ing account; fix `robots.txt` sitemap host; decide `.md` for `/family/`, `/friends/` _(Source: spec rollout)_
@@ -29,6 +29,10 @@ _Updated: 2026-09-23_
 - [ ] **Shared Formspree ID `mgeggkzw`** — confirm BrianBK.ing + KingFamily sharing one form is intended _(Source: spec open items)_
 
 ### Low Priority / Nice to Have
+- [ ] **Lighthouse BP/SEO floor** — relative gate can ratchet down across merged-on-red PRs; consider `min(95, baseline)` floor or a warning _(Source: pilot final review I4, Brian to decide)_
+- [ ] **Review minors** — import STAGING_ROBOTS from the Worker; rollback when promote fails after applying; check package.json tag = workflow pin; exclude family subdomains in link check; fix stale site-weekly comment; pin third-party actions by SHA; toolchain-bump version validation; .well-known smoke on PR preview; Link alternate keeps query string _(Source: both reviews)_
+- [ ] **Visual threshold** — pixelmatch 0.1 absorbed a footer opacity change; consider a lower threshold for colour-sensitive pages _(Source: pilot findings)_
+- [ ] **Identify the zone bot-challenge feature** — Security → Events _(Source: pilot findings Q1)_
 - [ ] **Contact-form name pattern** — `[A-Za-z\s]+` rejects hyphens, apostrophes, accents _(Source: spec open items)_
 - [ ] **`run_worker_first` route list** — exclude static paths once pattern syntax is confirmed _(Source: plan minimal: marker)_
 - [ ] **`_headers` Cache-Control doubling** — `/*` and `/css/*` both apply, emitting `public, max-age=0, must-revalidate, public, max-age=3600` _(Source: pilot wrangler dev, 2026-09-23)_
@@ -36,3 +40,5 @@ _Updated: 2026-09-23_
 ---
 
 ## Completed
+
+- [x] **Phase 0 + W3BBK.us pilot** — site-pipeline v0.1.0–v0.1.6 public; w3bbk.us deploys via Actions and serves markdown — _Completed: 2026-09-23_ — [plan](../plans/2026-09-23-site-pipeline-phase0-w3bbk-pilot.md), [findings](../findings/2026-09-23-w3bbk-pilot.md)
