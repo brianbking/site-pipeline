@@ -13,13 +13,13 @@ _Updated: 2026-09-23 (after pilot)_
 
 ## Planned
 
+- [ ] **Wave 2: BBKing.net** — config-only port of the pilot, plus footer contrast fix (local A11y 87) and untracking `.hugo_build.lock`; tag `v1.0.0` after — [plan](../plans/2026-09-23-site-pipeline-wave2-bbking.md)
 
 ---
 
 ## Backlog
 
 ### High Priority
-- [ ] **Wave 2: BBKing.net** — config-only port of the pilot; setup checklist must include the Preview URLs toggle and a manual Access-redirect check; tag `v1.0.0` after _(Source: spec rollout, pilot findings)_
 - [ ] **Wave 3: KingFamily** — adds Formspree offline check + weekly canary _(Source: spec rollout)_
 - [ ] **Wave 4: BrianBK.ing + JillK.ing** — adds résumé PDF build step; fix `_headers` `kingfamily.info` Links; delete stale `brianbking.pages.dev` _(Source: spec rollout)_
 - [ ] **Wave 5: MasonBK.ing** — Pages → Workers in the M@sonBK.ing account; fix `robots.txt` sitemap host; decide `.md` for `/family/`, `/friends/` _(Source: spec rollout)_
