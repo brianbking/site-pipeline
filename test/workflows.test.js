@@ -41,4 +41,10 @@ describe("setup action", () => {
     const action = readFileSync(join(import.meta.dirname, "..", ".github", "actions", "setup", "action.yml"), "utf8");
     expect(action).toContain("npm ci --prefix .site-pipeline --ignore-scripts");
   });
+
+  it("installs the Worker over https, since runners have no GitHub SSH key", () => {
+    const action = readFileSync(join(import.meta.dirname, "..", ".github", "actions", "setup", "action.yml"), "utf8");
+    expect(action).toContain('npm install --no-save "git+https://github.com/brianbking/site-pipeline.git#${REF}"');
+    expect(action).not.toContain("github:brianbking/site-pipeline");
+  });
 });

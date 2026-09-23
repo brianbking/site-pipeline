@@ -8,7 +8,7 @@ Design: `.agents/specs/2026-09-23-workers-ci-pipeline-design.md`.
 | File | Content |
 |---|---|
 | `src/worker.js` | `export { default } from "@kingfamily/site-worker";` |
-| `package.json` | `"@kingfamily/site-worker": "github:brianbking/site-pipeline#vX.Y.Z"`, `wrangler` as a dev dependency |
+| `package.json` | `"@kingfamily/site-worker": "git+https://github.com/brianbking/site-pipeline.git#vX.Y.Z"` (https, not `github:`: npm records `github:` as `git+ssh`, which runners cannot clone), `wrangler` as a dev dependency |
 | `wrangler.jsonc` | `main`, `preview_urls: true`, `assets` with `binding: "ASSETS"` and `run_worker_first`, `env.staging` with `SITE_ENV=staging` |
 | `.github/workflows/pr.yml` · `deploy.yml` · `weekly.yml` | call `site-pr.yml`, `site-deploy.yml`, `site-weekly.yml` here at **one** tag |
 | `.github/dependabot.yml` | `github-actions` + `npm`, `target-branch: staging` |
