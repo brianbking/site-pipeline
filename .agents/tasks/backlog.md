@@ -19,7 +19,6 @@ _Updated: 2026-09-23 (after pilot)_
 ## Backlog
 
 ### High Priority
-- [ ] **Release v0.1.7 to W3BBK** — review fixes (`indexable` check, deploy branch guard) are on `fix/review-pilot`, not yet released _(Source: pilot final review)_
 - [ ] **Wave 2: BBKing.net** — config-only port of the pilot; setup checklist must include the Preview URLs toggle and a manual Access-redirect check; tag `v1.0.0` after _(Source: spec rollout, pilot findings)_
 - [ ] **Wave 3: KingFamily** — adds Formspree offline check + weekly canary _(Source: spec rollout)_
 - [ ] **Wave 4: BrianBK.ing + JillK.ing** — adds résumé PDF build step; fix `_headers` `kingfamily.info` Links; delete stale `brianbking.pages.dev` _(Source: spec rollout)_
@@ -41,4 +40,5 @@ _Updated: 2026-09-23 (after pilot)_
 
 ## Completed
 
+- [x] **Release v0.1.7 to W3BBK** — indexable check + deploy branch guard live in production — _Completed: 2026-09-23_
 - [x] **Phase 0 + W3BBK.us pilot** — site-pipeline v0.1.0–v0.1.6 public; w3bbk.us deploys via Actions and serves markdown — _Completed: 2026-09-23_ — [plan](../plans/2026-09-23-site-pipeline-phase0-w3bbk-pilot.md), [findings](../findings/2026-09-23-w3bbk-pilot.md)
