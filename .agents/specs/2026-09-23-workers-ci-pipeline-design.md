@@ -202,6 +202,24 @@ Delete stale `brianbking.pages.dev` in wave 4 after confirming no custom domain 
   scope unless pulled in.
 - `security.txt` `Expires` is 2029; RFC 9116 recommends (SHOULD) under one year. No change planned.
 
+## Revisions from planning (2026-09-23)
+
+Found while writing and running the plan's code; the plan implements these, not the text above.
+
+| Area | Change | Why |
+|---|---|---|
+| Live checks | Every Node/Playwright/Lighthouse check targets `workers.dev` version preview URLs, including staging and production smoke (run **before** promotion). Only a curl check touches real hostnames. | Node `fetch` is 403-challenged on all six zones whatever its user agent; curl with a browser UA is not. |
+| Access | No CI service token. The staging check asserts `staging.<host>` redirects to `*.cloudflareaccess.com`. | Follows from the row above; also proves the gate is on. |
+| Rollback | Re-deploy the recorded previous version ID at 100 % instead of `wrangler rollback`. | Deterministic target. |
+| Pinning | The site's workflow `uses:` tag is the single pin; CI installs the Worker from that tag. Dependabot `github-actions` bumps it. `toolchain-bump.yml` opens PRs only in `site-pipeline`. | No cross-repo token; one source of truth. |
+| Dependabot merges | The merge job dispatches `deploy.yml` on `staging`. | Pushes made with `GITHUB_TOKEN` trigger no workflows. |
+| Artifacts | `include-hidden-files: true`. | `upload-artifact@v4` drops `public/.well-known/` otherwise. |
+| Worker tests | Vitest with a stubbed `ASSETS` binding, plus `wrangler dev` smoke, instead of `vitest-pool-workers`. | Same coverage of Worker logic; runtime behaviour is verified on real deploys. |
+| Validators | Hand-rolled sitemap and Agent Card rules instead of an XSD or JSON Schema; Lighthouse via its Node API instead of `@lhci/cli`. | Marked `minimal:` in code with the upgrade path. |
+| `run_worker_first` | `true` instead of an HTML-route list. | Route-pattern syntax unverified; tiny traffic. Marked `minimal:`. |
+| Wave split | Formspree checks move to the wave 3 plan and the PDF step to wave 4. | The pilot site has neither. |
+| Findings | `_headers` rules **are** applied to `env.ASSETS.fetch` responses under `wrangler dev`; to re-confirm on a real deploy. MasonBK.ing's `robots.txt` names `kingfamily.info` as its sitemap host, and its `/family/` and `/friends/` pages have no `.md` sibling. Both are caught by the offline checks for wave 5. | |
+
 ## Out of scope
 
 Leaving Hugo; monorepo consolidation; making repos public or buying GitHub Pro; content changes;
