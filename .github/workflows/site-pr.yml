@@ -210,6 +210,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install pipeline dependencies
+        run: npm ci --prefix .site-pipeline --ignore-scripts
       - name: Summarize
         id: summary
         continue-on-error: true

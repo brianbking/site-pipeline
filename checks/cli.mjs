@@ -49,6 +49,10 @@ function writeFailure(message) {
   if (opt.json) writeFileSync(opt.json, JSON.stringify([{ name: command, status: "fail", failures: [{ file: command, message }] }], null, 2));
 }
 
+// versions upload prints no preview URL when the Worker-level setting is off; config alone does not turn it on.
+const noPreviewUrl = (worker) =>
+  `no preview URL in the upload output - enable Preview URLs for Worker "${worker}" (dashboard: Settings > Domains & Routes)`;
+
 const need = (...keys) => {
   const missing = keys.filter((k) => !opt[k]);
   if (missing.length) {
@@ -128,6 +132,7 @@ switch (command) {
     need("file", "active-file", "worker");
     const upload = parseVersionUpload(readFileSync(opt.file, "utf8"));
     const candidate = upload.aliasUrl ?? upload.previewUrl;
+    if (!candidate) throw new Error(noPreviewUrl(opt.worker));
     const baseline = versionPreviewUrl(candidate, opt.worker, parseActiveVersion(readFileSync(opt["active-file"], "utf8")));
     console.log(`version=${upload.versionId}\ncandidate=${candidate}\nbaseline=${baseline}`);
     break;
@@ -142,7 +147,7 @@ switch (command) {
     // --file: `wrangler versions upload` output. Prints VERSION= and PREVIEW= for $GITHUB_ENV.
     need("file", "worker");
     const upload = parseVersionUpload(readFileSync(opt.file, "utf8"));
-    if (!upload.previewUrl) throw new Error("no 'Version Preview URL' in upload output - are preview_urls enabled?");
+    if (!upload.previewUrl) throw new Error(noPreviewUrl(opt.worker));
     console.log(`VERSION=${upload.versionId}\nPREVIEW=${versionPreviewUrl(upload.previewUrl, opt.worker, upload.versionId)}`);
     break;
   }
