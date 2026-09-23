@@ -22,7 +22,7 @@ runs:
 
     - name: Install pipeline dependencies
       shell: bash
-      run: npm ci --prefix .site-pipeline
+      run: npm ci --prefix .site-pipeline --ignore-scripts
 
     - name: Install Hugo and Dart Sass
       if: inputs.toolchain == 'true'

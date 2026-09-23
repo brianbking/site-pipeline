@@ -18,6 +18,11 @@ env:
   TZ: America/New_York
   HUGO_ENVIRONMENT: production
 
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
 jobs:
   weekly:
     runs-on: ubuntu-latest
@@ -62,7 +67,11 @@ jobs:
       - name: security.txt
         id: sectxt
         continue-on-error: true
-        run: node .site-pipeline/checks/cli.mjs security-txt --host "$HOST" | tee sectxt.txt
+        run: |
+          # curl, not Node: the zones 403-challenge Node's fetch; Cloudflare serves this file itself.
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 site-pipeline'
+          curl -fsS -A "$UA" -o security.txt "https://${HOST}/.well-known/security.txt"
+          node .site-pipeline/checks/cli.mjs security-txt --host "$HOST" --file security.txt | tee sectxt.txt
 
       - name: security.txt issue
         if: always()

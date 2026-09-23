@@ -31,6 +31,11 @@ on:
 permissions:
   contents: read
 
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
 env:
   TZ: America/New_York
   HUGO_ENVIRONMENT: production
@@ -99,9 +104,6 @@ jobs:
     outputs:
       candidate: ${{ steps.urls.outputs.candidate }}
       baseline: ${{ steps.urls.outputs.baseline }}
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -119,6 +121,8 @@ jobs:
 
       - name: Upload preview version
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }} # this step only, never visible to npm install scripts
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -224,7 +228,7 @@ jobs:
             printf '[{"name":"pipeline jobs","status":"fail","failures":[{"file":"workflow","message":"job(s) did not succeed:%s"}]}]' "$failed" > results/00-jobs.json
           fi
           set +e
-          node .site-pipeline/checks/cli.mjs summary --results results
+          node .site-pipeline/checks/cli.mjs summary --results results --expect 10-offline,20-negotiate,30-visual,40-lighthouse
           rc=$?
           { echo; echo "Preview: ${CANDIDATE:-not deployed} · [run]($RUN_URL) · visual diffs are in the \`visual-diffs\` artifact"; } >> results/summary.md
           exit $rc
@@ -244,7 +248,7 @@ jobs:
 
   dependabot-merge:
     needs: site-gate
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'staging'
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'staging'
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -255,8 +259,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
         run: |
-          gh pr merge "$PR_URL" --merge
+          # Merge exactly the commit site-gate checked; a newer push since then makes this fail.
+          gh pr merge "$PR_URL" --merge --match-head-commit "$HEAD_SHA"
           # A push made with GITHUB_TOKEN never triggers workflows; workflow_dispatch is the exception.
           gh workflow run deploy.yml --repo "$REPO" --ref staging

@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { OFFLINE_CHECKS } from "./offline.mjs";
-import { checkNegotiationLive, checkSecurityTxt, checkSmoke } from "./live.mjs";
+import { checkNegotiationLive, checkSecurityTxt, checkSmoke, evaluateSecurityTxt } from "./live.mjs";
 import { evaluateLighthouse, runLighthouse } from "./lighthouse.mjs";
 import { VIEWPORTS, capture, comparePngs, evaluateVisual } from "./visual.mjs";
 import { execFileSync } from "node:child_process";
@@ -30,6 +30,7 @@ const { values: opt } = parseArgs({
     file: { type: "string" },
     "active-file": { type: "string" },
     results: { type: "string" },
+    expect: { type: "string", default: "" },
     title: { type: "string" },
     failing: { type: "boolean", default: false },
   },
@@ -43,14 +44,21 @@ function report(name, failures, status = failures.length ? "fail" : "pass") {
   process.exit(status === "fail" ? 1 : 0);
 }
 
+/** Record a failure for a command that could not run, so the gate never mistakes silence for a pass. */
+function writeFailure(message) {
+  if (opt.json) writeFileSync(opt.json, JSON.stringify([{ name: command, status: "fail", failures: [{ file: command, message }] }], null, 2));
+}
+
 const need = (...keys) => {
   const missing = keys.filter((k) => !opt[k]);
   if (missing.length) {
     console.error(`${command}: missing --${missing.join(", --")}`);
+    writeFailure(`missing --${missing.join(", --")} (did an earlier step fail?)`);
     process.exit(2);
   }
 };
 
+try {
 switch (command) {
   case "offline": {
     need("host");
@@ -70,8 +78,9 @@ switch (command) {
     break;
   }
   case "security-txt": {
+    // --file: a copy fetched with curl (the zones challenge Node's fetch); otherwise fetch it here.
     need("host");
-    report("security.txt", await checkSecurityTxt(opt.host));
+    report("security.txt", opt.file ? evaluateSecurityTxt(readFileSync(opt.file, "utf8"), opt.host) : await checkSecurityTxt(opt.host));
     break;
   }
   case "visual": {
@@ -158,6 +167,16 @@ switch (command) {
       .filter((f) => f.endsWith(".json"))
       .sort()
       .flatMap((f) => JSON.parse(readFileSync(join(opt.results, f), "utf8")));
+    // --expect: result files every run must produce. A missing one means that check crashed or never ran.
+    const present = new Set(readdirSync(opt.results));
+    const missing = opt.expect.split(",").filter(Boolean).filter((name) => !present.has(`${name}.json`));
+    if (missing.length) {
+      sections.unshift({
+        name: "missing results",
+        status: "fail",
+        failures: missing.map((name) => ({ file: `${name}.json`, message: "no result - the check crashed or never ran" })),
+      });
+    }
     const md = renderSummary(sections);
     writeFileSync(join(opt.results, "summary.md"), md);
     console.log(md);
@@ -167,4 +186,9 @@ switch (command) {
   default:
     console.error(`unknown command "${command}"`);
     process.exit(2);
+}
+} catch (e) {
+  console.error(e);
+  writeFailure(`${command} crashed: ${e.message}`);
+  process.exit(1);
 }

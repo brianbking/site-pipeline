@@ -12,6 +12,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
 jobs:
   bump:
     runs-on: ubuntu-latest

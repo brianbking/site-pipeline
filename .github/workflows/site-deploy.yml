@@ -33,9 +33,13 @@ concurrency:
 env:
   TZ: America/New_York
   HUGO_ENVIRONMENT: production
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
+# The Cloudflare token is set on each wrangler step only, never where npm install scripts run.
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -90,6 +94,9 @@ jobs:
         run: node .site-pipeline/checks/cli.mjs offline --dir public --host "$HOST"
 
       - name: Record the version currently serving traffic
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           # shellcheck disable=SC2086
           npx wrangler deployments status $ENV_FLAG | tee active.txt
@@ -97,6 +104,8 @@ jobs:
 
       - name: Upload new version
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SHA: ${{ github.sha }}
         run: |
           # shellcheck disable=SC2086
@@ -109,6 +118,9 @@ jobs:
             $([ "$ENVIRONMENT" = staging ] && echo --staging)
 
       - name: Promote to 100%
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           # shellcheck disable=SC2086
           npx wrangler versions deploy "${VERSION}@100%" $ENV_FLAG --yes --message "deploy ${GITHUB_SHA}"
@@ -135,6 +147,9 @@ jobs:
 
       - name: Roll back
         if: failure() && steps.hostcheck.outcome == 'failure' && env.PREVIOUS != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           # shellcheck disable=SC2086
           npx wrangler versions deploy "${PREVIOUS}@100%" $ENV_FLAG --yes --message "auto-rollback from ${VERSION}"
