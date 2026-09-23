@@ -86,8 +86,9 @@ jobs:
       - name: Build lychee exclude args
         run: |
           # Own-site links are already checked offline on every PR. [.] escapes dots without backslashes.
-          args="--exclude ^https?://$(printf '%s' "$HOST" | sed 's/[.]/[.]/g')"
-          for rx in $LINK_EXCLUDE; do args="$args --exclude $rx"; done
+          # Each regex is single-quoted: lychee-action evals its args, and ( | ) are shell syntax there.
+          args="--exclude '^https?://$(printf '%s' "$HOST" | sed 's/[.]/[.]/g')'"
+          for rx in $LINK_EXCLUDE; do args="$args --exclude '$rx'"; done
           echo "LYCHEE_EXCLUDES=$args" >> "$GITHUB_ENV"
 
       - name: External links
