@@ -43,6 +43,11 @@ describe("site-deploy.yml", () => {
 });
 
 describe("site-weekly.yml", () => {
+  it("single-quotes each lychee --exclude regex, because lychee-action evals its args", () => {
+    const t = text("site-weekly.yml");
+    expect(t).toContain(`args="--exclude '^https?://$(printf '%s' "$HOST" | sed 's/[.]/[.]/g')'"`);
+    expect(t).toContain(`for rx in $LINK_EXCLUDE; do args="$args --exclude '$rx'"; done`);
+  });
   it("excludes every family domain from the external link check (the zones challenge runners)", () => {
     const t = text("site-weekly.yml");
     for (const host of ["bbking[.]net", "brianbk[.]ing", "jillk[.]ing", "kingfamily[.]info", "masonbk[.]ing", "w3bbk[.]us"]) {
