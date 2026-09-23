@@ -44,7 +44,7 @@ runs:
         REF: ${{ inputs.ref }}
       run: |
         if [ -f package-lock.json ]; then npm ci; elif [ -f package.json ]; then npm install; fi
-        npm install --no-save "github:brianbking/site-pipeline#${REF}"
+        npm install --no-save "git+https://github.com/brianbking/site-pipeline.git#${REF}"
 
     - name: Install Playwright Chromium
       if: inputs.browsers == 'true'
