@@ -1,0 +1,262 @@
+name: site-pr
+
+# Reusable PR pipeline: build once -> offline checks -> preview upload -> live checks -> site-gate.
+on:
+  workflow_call:
+    inputs:
+      host:
+        description: production hostname, e.g. w3bbk.us
+        type: string
+        required: true
+      worker:
+        description: production Worker name, e.g. w3bbk
+        type: string
+        required: true
+      visual-pages:
+        type: string
+        default: '["/"]'
+      visual-mask:
+        description: JSON array of CSS selectors blanked before screenshots
+        type: string
+        default: "[]"
+      lighthouse-pages:
+        type: string
+        default: '["/"]'
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: true
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  TZ: America/New_York
+  HUGO_ENVIRONMENT: production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Hugo .GitInfo / lastmod
+
+      - name: Resolve pinned site-pipeline ref
+        id: ref
+        run: |
+          refs=$(grep -rhoE 'brianbking/site-pipeline/\.github/workflows/[A-Za-z0-9._-]+@[A-Za-z0-9._/-]+' .github/workflows | sed 's/.*@//' | sort -u)
+          if [ "$(printf '%s' "$refs" | grep -c .)" != "1" ]; then
+            echo "::error::workflows must pin exactly one site-pipeline ref, found: ${refs:-none}"
+            exit 1
+          fi
+          echo "ref=$refs" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: brianbking/site-pipeline
+          ref: ${{ steps.ref.outputs.ref }}
+          path: .site-pipeline
+
+      - uses: ./.site-pipeline/.github/actions/setup
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          toolchain: "true"
+
+      - name: Build
+        run: |
+          git config core.quotepath false
+          hugo --gc --minify
+
+      - name: Offline checks
+        continue-on-error: true # reported by site-gate; the preview still deploys so live checks run too
+        env:
+          HOST: ${{ inputs.host }}
+        run: |
+          mkdir -p results
+          node .site-pipeline/checks/cli.mjs offline --dir public --host "$HOST" --json results/10-offline.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public
+          path: public
+          include-hidden-files: true # public/.well-known/
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-build
+          path: results
+          if-no-files-found: ignore
+
+  preview:
+    needs: build
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ steps.urls.outputs.candidate }}
+      baseline: ${{ steps.urls.outputs.baseline }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: brianbking/site-pipeline
+          ref: ${{ needs.build.outputs.ref }}
+          path: .site-pipeline
+      - uses: ./.site-pipeline/.github/actions/setup
+        with:
+          ref: ${{ needs.build.outputs.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: public
+          path: public
+
+      - name: Upload preview version
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          npx wrangler versions upload --env= --preview-alias "pr-${PR}" --message "PR #${PR} ${SHA}" | tee upload.txt
+          npx wrangler deployments status --env= | tee active.txt
+
+      - name: Resolve preview URLs
+        id: urls
+        env:
+          WORKER: ${{ inputs.worker }}
+        run: node .site-pipeline/checks/cli.mjs preview-urls --file upload.txt --active-file active.txt --worker "$WORKER" | tee -a "$GITHUB_OUTPUT"
+
+  live:
+    needs: [build, preview]
+    runs-on: ubuntu-latest
+    env:
+      CANDIDATE: ${{ needs.preview.outputs.candidate }}
+      BASELINE: ${{ needs.preview.outputs.baseline }}
+      VISUAL_PAGES: ${{ inputs.visual-pages }}
+      VISUAL_MASK: ${{ inputs.visual-mask }}
+      LIGHTHOUSE_PAGES: ${{ inputs.lighthouse-pages }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: brianbking/site-pipeline
+          ref: ${{ needs.build.outputs.ref }}
+          path: .site-pipeline
+      - uses: ./.site-pipeline/.github/actions/setup
+        with:
+          ref: ${{ needs.build.outputs.ref }}
+          browsers: "true"
+      - run: mkdir -p results
+
+      - name: Markdown negotiation
+        continue-on-error: true
+        run: node .site-pipeline/checks/cli.mjs negotiate --base "$CANDIDATE" --json results/20-negotiate.json
+
+      - name: Visual regression
+        continue-on-error: true
+        env:
+          APPROVED: ${{ contains(github.event.pull_request.labels.*.name, 'approved-visual-change') }}
+        run: |
+          node .site-pipeline/checks/cli.mjs visual --baseline "$BASELINE" --candidate "$CANDIDATE" \
+            --pages "$VISUAL_PAGES" --mask "$VISUAL_MASK" --out visual \
+            $([ "$APPROVED" = "true" ] && echo --approved) --json results/30-visual.json
+
+      - name: Lighthouse
+        continue-on-error: true
+        run: |
+          node .site-pipeline/checks/cli.mjs lighthouse --baseline "$BASELINE" --candidate "$CANDIDATE" \
+            --pages "$LIGHTHOUSE_PAGES" --json results/40-lighthouse.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-live
+          path: results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-diffs
+          path: visual
+          if-no-files-found: ignore
+          retention-days: 14
+
+  site-gate:
+    needs: [build, preview, live]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          merge-multiple: true
+          path: results
+      - uses: actions/checkout@v4
+        with:
+          repository: brianbking/site-pipeline
+          ref: ${{ needs.build.outputs.ref || 'main' }}
+          path: .site-pipeline
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Summarize
+        id: summary
+        continue-on-error: true
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CANDIDATE: ${{ needs.preview.outputs.candidate }}
+          BUILD: ${{ needs.build.result }}
+          PREVIEW: ${{ needs.preview.result }}
+          LIVE: ${{ needs.live.result }}
+        run: |
+          mkdir -p results
+          failed=""
+          [ "$BUILD" = success ] || failed="$failed build"
+          [ "$PREVIEW" = success ] || failed="$failed preview"
+          [ "$LIVE" = success ] || failed="$failed live"
+          if [ -n "$failed" ]; then
+            printf '[{"name":"pipeline jobs","status":"fail","failures":[{"file":"workflow","message":"job(s) did not succeed:%s"}]}]' "$failed" > results/00-jobs.json
+          fi
+          set +e
+          node .site-pipeline/checks/cli.mjs summary --results results
+          rc=$?
+          { echo; echo "Preview: ${CANDIDATE:-not deployed} · [run]($RUN_URL) · visual diffs are in the \`visual-diffs\` artifact"; } >> results/summary.md
+          exit $rc
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: site-gate
+          path: results/summary.md
+      - name: Gate
+        env:
+          BUILD: ${{ needs.build.result }}
+          PREVIEW: ${{ needs.preview.result }}
+          LIVE: ${{ needs.live.result }}
+          SUMMARY: ${{ steps.summary.outcome }}
+        run: |
+          echo "build=$BUILD preview=$PREVIEW live=$LIVE summary=$SUMMARY"
+          [ "$BUILD" = success ] && [ "$PREVIEW" = success ] && [ "$LIVE" = success ] && [ "$SUMMARY" = success ]
+
+  dependabot-merge:
+    needs: site-gate
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'staging'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge green Dependabot PR into staging, then start the staging deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr merge "$PR_URL" --merge
+          # A push made with GITHUB_TOKEN never triggers workflows; workflow_dispatch is the exception.
+          gh workflow run deploy.yml --repo "$REPO" --ref staging

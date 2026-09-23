@@ -1,0 +1,44 @@
+name: toolchain-bump
+
+# Weekly: if Hugo or Dart Sass has a newer release than toolchain.json, open a PR here.
+# Sites pick the change up when a new site-pipeline tag reaches them through Dependabot.
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare with the latest releases
+        id: latest
+        run: |
+          hugo=$(gh api repos/gohugoio/hugo/releases/latest --jq .tag_name | sed 's/^v//')
+          sass=$(gh api repos/sass/dart-sass/releases/latest --jq .tag_name)
+          jq --arg h "$hugo" --arg s "$sass" '.hugo = $h | .dartSass = $s' toolchain.json > toolchain.new
+          mv toolchain.new toolchain.json
+          echo "branch=chore/toolchain-hugo-${hugo}-sass-${sass}" >> "$GITHUB_OUTPUT"
+          echo "title=chore: bump toolchain to Hugo ${hugo}, Dart Sass ${sass}" >> "$GITHUB_OUTPUT"
+      - name: Open a PR when anything changed
+        env:
+          BRANCH: ${{ steps.latest.outputs.branch }}
+          TITLE: ${{ steps.latest.outputs.title }}
+        run: |
+          if git diff --quiet; then echo "toolchain is current"; exit 0; fi
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then echo "PR branch already exists"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git commit -am "$TITLE"
+          git push origin "$BRANCH"
+          gh pr create --title "$TITLE" --body "Automated weekly toolchain check." --base main --head "$BRANCH"
+          gh workflow run ci.yml --ref "$BRANCH"

@@ -1,0 +1,52 @@
+name: site-pipeline setup
+description: >
+  Node, the pipeline's own dependencies, optionally Hugo + Dart Sass from toolchain.json, and the
+  site's npm dependencies with @kingfamily/site-worker forced to the pinned pipeline ref.
+  Expects the site checked out at the workspace root and site-pipeline at ./.site-pipeline.
+inputs:
+  ref:
+    description: site-pipeline ref the site's workflows pin
+    required: true
+  toolchain:
+    description: install Hugo extended and Dart Sass
+    default: "false"
+  browsers:
+    description: install Playwright Chromium (visual regression)
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+
+    - name: Install pipeline dependencies
+      shell: bash
+      run: npm ci --prefix .site-pipeline
+
+    - name: Install Hugo and Dart Sass
+      if: inputs.toolchain == 'true'
+      shell: bash
+      run: |
+        HUGO_VERSION=$(jq -r .hugo .site-pipeline/toolchain.json)
+        DART_SASS_VERSION=$(jq -r .dartSass .site-pipeline/toolchain.json)
+        mkdir -p "$RUNNER_TEMP/bin"
+        curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" \
+          | tar -xz -C "$RUNNER_TEMP/bin" hugo
+        curl -fsSL "https://github.com/sass/dart-sass/releases/download/${DART_SASS_VERSION}/dart-sass-${DART_SASS_VERSION}-linux-x64.tar.gz" \
+          | tar -xz -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+        echo "$RUNNER_TEMP/dart-sass" >> "$GITHUB_PATH"
+
+    - name: Install site dependencies at the pinned pipeline ref
+      shell: bash
+      env:
+        REF: ${{ inputs.ref }}
+      run: |
+        if [ -f package-lock.json ]; then npm ci; elif [ -f package.json ]; then npm install; fi
+        npm install --no-save "github:brianbking/site-pipeline#${REF}"
+
+    - name: Install Playwright Chromium
+      if: inputs.browsers == 'true'
+      shell: bash
+      run: npx --prefix .site-pipeline playwright install --with-deps chromium
