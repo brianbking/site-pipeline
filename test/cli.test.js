@@ -27,6 +27,17 @@ describe("a command that throws", () => {
   });
 });
 
+describe("preview-urls", () => {
+  it("says preview URLs are disabled when the upload printed none", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "upload.txt"), "Worker Version ID: ee532a44-3fef-4d44-b48d-ee616698abb5\n");
+    writeFileSync(join(dir, "active.txt"), "Version(s):  (100%) da2eaf8e-18ad-4c17-8c60-292e983c3b56\n");
+    const res = run("preview-urls", "--file", join(dir, "upload.txt"), "--active-file", join(dir, "active.txt"), "--worker", "w3bbk");
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/no preview URL in the upload output - enable Preview URLs for Worker "w3bbk"/);
+  });
+});
+
 describe("summary --expect", () => {
   it("fails and names each expected result file that is missing", () => {
     const dir = tmp();

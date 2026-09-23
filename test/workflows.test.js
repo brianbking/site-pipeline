@@ -23,6 +23,12 @@ describe("site-pr.yml", () => {
   it("merges a Dependabot PR only at the head commit its gate checked", () => {
     expect(text("site-pr.yml")).toContain('gh pr merge "$PR_URL" --merge --match-head-commit "$HEAD_SHA"');
   });
+  it("installs the pipeline's dependencies in site-gate before the CLI summarizes", () => {
+    const gate = text("site-pr.yml").split(/^ {2}site-gate:$/m)[1].split(/^ {2}dependabot-merge:$/m)[0];
+    const install = gate.indexOf("npm ci --prefix .site-pipeline --ignore-scripts");
+    expect(install).toBeGreaterThan(-1);
+    expect(install).toBeLessThan(gate.indexOf("checks/cli.mjs summary"));
+  });
   it("requires every live result file in the summary", () => {
     expect(text("site-pr.yml")).toContain("--expect 10-offline,20-negotiate,30-visual,40-lighthouse");
   });
