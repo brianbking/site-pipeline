@@ -6,3 +6,5 @@ playwright-report/
 .lighthouseci/
 .env
 .dev.vars
+.agents/handoff/
+.superpowers/
