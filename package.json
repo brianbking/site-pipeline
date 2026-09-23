@@ -1,0 +1,29 @@
+{
+  "name": "@kingfamily/site-worker",
+  "version": "0.1.0",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "devDependencies": {
+    "chrome-launcher": "^1.2.1",
+    "fast-xml-parser": "^5.11.1",
+    "lighthouse": "^13.5.0",
+    "pixelmatch": "^7.2.0",
+    "playwright": "^1.63.0",
+    "pngjs": "^7.0.0",
+    "vitest": "^5.0.1"
+  },
+  "private": true,
+  "exports": {
+    ".": "./worker/index.js",
+    "./negotiate": "./worker/negotiate.js"
+  },
+  "files": [
+    "worker"
+  ],
+  "engines": {
+    "node": ">=24"
+  }
+}

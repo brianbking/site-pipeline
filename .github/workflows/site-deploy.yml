@@ -1,0 +1,164 @@
+name: site-deploy
+
+# Reusable deploy: build -> upload version -> smoke the version's preview URL -> promote to 100%
+# -> check the real hostname -> roll back to the previous version if that check fails.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "staging or production"
+        type: string
+        required: true
+      host:
+        description: production hostname, e.g. w3bbk.us (staging uses staging.<host>)
+        type: string
+        required: true
+      worker:
+        description: production Worker name, e.g. w3bbk (staging uses <worker>-staging)
+        type: string
+        required: true
+      smoke-pages:
+        type: string
+        default: '["/"]'
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: true
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  TZ: America/New_York
+  HUGO_ENVIRONMENT: production
+
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
+# The Cloudflare token is set on each wrangler step only, never where npm install scripts run.
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      HOST: ${{ inputs.host }}
+      WORKER: ${{ inputs.worker }}
+      SMOKE_PAGES: ${{ inputs.smoke-pages }}
+    steps:
+      - name: Validate inputs
+        run: |
+          case "$ENVIRONMENT" in
+            staging)    echo "ENV_FLAG=--env staging" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}-staging" >> "$GITHUB_ENV"; echo "TARGET_HOST=staging.${HOST}" >> "$GITHUB_ENV";;
+            production) echo "ENV_FLAG=--env=" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}" >> "$GITHUB_ENV"; echo "TARGET_HOST=${HOST}" >> "$GITHUB_ENV";;
+            *) echo "::error::environment must be staging or production, got '$ENVIRONMENT'"; exit 1;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve pinned site-pipeline ref
+        id: ref
+        run: |
+          refs=$(grep -rhoE 'brianbking/site-pipeline/\.github/workflows/[A-Za-z0-9._-]+@[A-Za-z0-9._/-]+' .github/workflows | sed 's/.*@//' | sort -u)
+          if [ "$(printf '%s' "$refs" | grep -c .)" != "1" ]; then
+            echo "::error::workflows must pin exactly one site-pipeline ref, found: ${refs:-none}"
+            exit 1
+          fi
+          echo "ref=$refs" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: brianbking/site-pipeline
+          ref: ${{ steps.ref.outputs.ref }}
+          path: .site-pipeline
+
+      - uses: ./.site-pipeline/.github/actions/setup
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          toolchain: "true"
+
+      - name: Build
+        run: |
+          git config core.quotepath false
+          hugo --gc --minify
+
+      - name: Offline checks
+        run: node .site-pipeline/checks/cli.mjs offline --dir public --host "$HOST"
+
+      - name: Record the version currently serving traffic
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # shellcheck disable=SC2086
+          npx wrangler deployments status $ENV_FLAG | tee active.txt
+          node .site-pipeline/checks/cli.mjs active-version --file active.txt | tee -a "$GITHUB_ENV"
+
+      - name: Upload new version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SHA: ${{ github.sha }}
+        run: |
+          # shellcheck disable=SC2086
+          npx wrangler versions upload $ENV_FLAG --message "${ENVIRONMENT} ${SHA}" | tee upload.txt
+          node .site-pipeline/checks/cli.mjs version-info --file upload.txt --worker "$TARGET_WORKER" | tee -a "$GITHUB_ENV"
+
+      - name: Smoke the new version before it takes traffic
+        run: |
+          node .site-pipeline/checks/cli.mjs smoke --base "$PREVIEW" --pages "$SMOKE_PAGES" \
+            $([ "$ENVIRONMENT" = staging ] && echo --staging)
+
+      - name: Promote to 100%
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # shellcheck disable=SC2086
+          npx wrangler versions deploy "${VERSION}@100%" $ENV_FLAG --yes --message "deploy ${GITHUB_SHA}"
+
+      - name: Check the real hostname
+        id: hostcheck
+        run: |
+          # curl, not Node: the zones 403-challenge Node's TLS fingerprint (see pilot findings).
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 site-pipeline'
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -D headers.txt -A "$UA" -w '%{http_code}' "https://${TARGET_HOST}/")
+            redirect=$(grep -i '^location:' headers.txt | tr -d '\r' | cut -d' ' -f2 || true)
+            robots=$(grep -i '^x-robots-tag:' headers.txt | tr -d '\r' | cut -d' ' -f2- || true)
+            echo "attempt $i: code=$code location=$redirect x-robots-tag=$robots"
+            if [ "$ENVIRONMENT" = staging ]; then
+              # Staging sits behind Cloudflare Access: an unauthenticated request must be redirected to login.
+              case "$redirect" in https://*.cloudflareaccess.com/*) exit 0;; esac
+            else
+              [ "$code" = 200 ] && [[ "$robots" != *noindex* ]] && exit 0
+            fi
+            sleep 10
+          done
+          exit 1
+
+      - name: Roll back
+        if: failure() && steps.hostcheck.outcome == 'failure' && env.PREVIOUS != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # shellcheck disable=SC2086
+          npx wrangler versions deploy "${PREVIOUS}@100%" $ENV_FLAG --yes --message "auto-rollback from ${VERSION}"
+
+      - name: Open, update or close the failure issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED: ${{ job.status != 'success' }}
+        run: |
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: ${ENVIRONMENT} deploy failing" \
+            $([ "$FAILED" = true ] && echo --failing)

@@ -1,0 +1,64 @@
+// The CLI is the gate's contract with the workflows: a crash must still leave a failing result.
+import { describe, it, expect, afterEach } from "vitest";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const CLI = join(import.meta.dirname, "..", "checks", "cli.mjs");
+const run = (...args) => spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+
+const dirs = [];
+const tmp = () => {
+  const d = mkdtempSync(join(tmpdir(), "sp-cli-"));
+  dirs.push(d);
+  return d;
+};
+afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
+
+describe("a command that throws", () => {
+  it("still writes a failing --json result and exits 1", () => {
+    const out = join(tmp(), "20-negotiate.json");
+    const res = run("negotiate", "--base", "http://127.0.0.1:9/", "--json", out);
+    expect(res.status).toBe(1);
+    const [result] = JSON.parse(readFileSync(out, "utf8"));
+    expect(result).toMatchObject({ name: "negotiate", status: "fail" });
+    expect(result.failures[0].message).toMatch(/crashed/);
+  });
+});
+
+describe("summary --expect", () => {
+  it("fails and names each expected result file that is missing", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "10-offline.json"), JSON.stringify([{ name: "offline checks", status: "pass", failures: [] }]));
+    const res = run("summary", "--results", dir, "--expect", "10-offline,20-negotiate,30-visual");
+    expect(res.status).toBe(1);
+    const md = readFileSync(join(dir, "summary.md"), "utf8");
+    expect(md).toContain("## ❌ site-gate");
+    expect(md).toContain("`20-negotiate.json`: no result - the check crashed or never ran");
+    expect(md).toContain("`30-visual.json`: no result - the check crashed or never ran");
+  });
+
+  it("passes when every expected file is present and green", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "10-offline.json"), JSON.stringify([{ name: "offline checks", status: "pass", failures: [] }]));
+    expect(run("summary", "--results", dir, "--expect", "10-offline").status).toBe(0);
+    expect(existsSync(join(dir, "summary.md"))).toBe(true);
+  });
+});
+
+describe("security-txt --file", () => {
+  const good = "Contact: mailto:security@w3bbk.us\nExpires: 2099-12-31T23:59:00Z\n";
+  it("evaluates a local copy fetched by curl", () => {
+    const file = join(tmp(), "security.txt");
+    writeFileSync(file, good);
+    expect(run("security-txt", "--host", "w3bbk.us", "--file", file).status).toBe(0);
+  });
+  it("fails an expired local copy", () => {
+    const file = join(tmp(), "security.txt");
+    writeFileSync(file, good.replace("2099", "2001"));
+    const res = run("security-txt", "--host", "w3bbk.us", "--file", file);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toMatch(/expired on 2001/);
+  });
+});

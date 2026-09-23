@@ -1,0 +1,108 @@
+name: site-weekly
+
+# Reusable scheduled checks. Each one keeps a single tracking issue: opened or commented while
+# failing, closed when it passes again.
+on:
+  workflow_call:
+    inputs:
+      host:
+        description: production hostname, e.g. w3bbk.us
+        type: string
+        required: true
+      link-exclude:
+        description: space-separated lychee --exclude regexes, e.g. "^https://bbking[.]net" (hosts that challenge the checker)
+        type: string
+        default: ""
+
+env:
+  TZ: America/New_York
+  HUGO_ENVIRONMENT: production
+
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      HOST: ${{ inputs.host }}
+      LINK_EXCLUDE: ${{ inputs.link-exclude }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve pinned site-pipeline ref
+        id: ref
+        run: |
+          refs=$(grep -rhoE 'brianbking/site-pipeline/\.github/workflows/[A-Za-z0-9._-]+@[A-Za-z0-9._/-]+' .github/workflows | sed 's/.*@//' | sort -u)
+          if [ "$(printf '%s' "$refs" | grep -c .)" != "1" ]; then
+            echo "::error::workflows must pin exactly one site-pipeline ref, found: ${refs:-none}"
+            exit 1
+          fi
+          echo "ref=$refs" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: brianbking/site-pipeline
+          ref: ${{ steps.ref.outputs.ref }}
+          path: .site-pipeline
+
+      - uses: ./.site-pipeline/.github/actions/setup
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          toolchain: "true"
+
+      - name: Build
+        run: |
+          git config core.quotepath false
+          hugo --gc --minify
+
+      - name: security.txt
+        id: sectxt
+        continue-on-error: true
+        run: |
+          # curl, not Node: the zones 403-challenge Node's fetch; Cloudflare serves this file itself.
+          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 site-pipeline'
+          curl -fsS -A "$UA" -o security.txt "https://${HOST}/.well-known/security.txt"
+          node .site-pipeline/checks/cli.mjs security-txt --host "$HOST" --file security.txt | tee sectxt.txt
+
+      - name: security.txt issue
+        if: always()
+        env:
+          FAILED: ${{ steps.sectxt.outcome == 'failure' }}
+        run: |
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly security.txt failing" --file sectxt.txt \
+            $([ "$FAILED" = true ] && echo --failing)
+
+      - name: Build lychee exclude args
+        run: |
+          # Own-site links are already checked offline on every PR. [.] escapes dots without backslashes.
+          args="--exclude ^https?://$(printf '%s' "$HOST" | sed 's/[.]/[.]/g')"
+          for rx in $LINK_EXCLUDE; do args="$args --exclude $rx"; done
+          echo "LYCHEE_EXCLUDES=$args" >> "$GITHUB_ENV"
+
+      - name: External links
+        id: lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: false
+          output: lychee.md
+          args: >-
+            --no-progress --root-dir ${{ github.workspace }}/public --max-retries 2 --accept 200..=299,429
+            ${{ env.LYCHEE_EXCLUDES }}
+            'public/**/*.html' 'public/**/*.md' 'public/llms.txt'
+
+      - name: External links issue
+        if: always()
+        env:
+          FAILED: ${{ steps.lychee.outputs.exit_code != '0' }}
+        run: |
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly link check failing" --file lychee.md \
+            $([ "$FAILED" = true ] && echo --failing)

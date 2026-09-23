@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: # toolchain-bump.yml dispatches this: PRs opened with GITHUB_TOKEN trigger nothing
+
+permissions:
+  contents: read
+
+# bash -eo pipefail: 'cmd | tee' must not hide cmd's failure (the unset default has no pipefail).
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test
+      - uses: raven-actions/actionlint@v2
