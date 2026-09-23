@@ -10,9 +10,10 @@ on:
         type: string
         required: true
       link-exclude:
-        description: space-separated lychee --exclude regexes, e.g. "^https://bbking[.]net" (hosts that challenge the checker)
+        description: space-separated lychee --exclude regexes for hosts that challenge the checker
         type: string
-        default: ""
+        # Every family zone challenges GitHub runner IPs; their links are checked offline on every PR.
+        default: "^https?://(www[.])?(bbking[.]net|brianbk[.]ing|jillk[.]ing|kingfamily[.]info|masonbk[.]ing|w3bbk[.]us)"
 
 env:
   TZ: America/New_York

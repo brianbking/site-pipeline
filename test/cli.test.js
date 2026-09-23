@@ -38,6 +38,22 @@ describe("preview-urls", () => {
   });
 });
 
+describe("assert-active", () => {
+  const status = (id) => `Version(s):  (100%) ${id}\n`;
+  it("passes when the promoted version serves 100%", () => {
+    const file = join(tmp(), "after.txt");
+    writeFileSync(file, status("a05ffd03-554a-4695-b1b3-2ae17da815d6"));
+    expect(run("assert-active", "--file", file, "--version", "a05ffd03-554a-4695-b1b3-2ae17da815d6").status).toBe(0);
+  });
+  it("fails when another version is serving", () => {
+    const file = join(tmp(), "after.txt");
+    writeFileSync(file, status("5a9e7d25-4a74-4921-b178-7d3796a8379d"));
+    const res = run("assert-active", "--file", file, "--version", "a05ffd03-554a-4695-b1b3-2ae17da815d6");
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/5a9e7d25-4a74-4921-b178-7d3796a8379d is serving, expected a05ffd03-554a-4695-b1b3-2ae17da815d6/);
+  });
+});
+
 describe("summary --expect", () => {
   it("fails and names each expected result file that is missing", () => {
     const dir = tmp();
