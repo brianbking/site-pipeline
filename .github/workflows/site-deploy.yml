@@ -59,6 +59,11 @@ jobs:
             production) echo "ENV_FLAG=--env=" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}" >> "$GITHUB_ENV";;
             *) echo "::error::environment must be staging or production, got '$ENVIRONMENT'"; exit 1;;
           esac
+          # A manual dispatch from any other ref would put ungated code on staging (or production).
+          case "${ENVIRONMENT}:${GITHUB_REF_NAME}" in
+            staging:staging|production:main) ;;
+            *) echo "::error::${ENVIRONMENT} deploys only from its own branch, not '${GITHUB_REF_NAME}'"; exit 1;;
+          esac
 
       - uses: actions/checkout@v4
         with:
