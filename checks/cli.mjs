@@ -29,6 +29,7 @@ const { values: opt } = parseArgs({
     worker: { type: "string" },
     file: { type: "string" },
     "active-file": { type: "string" },
+    version: { type: "string" },
     results: { type: "string" },
     expect: { type: "string", default: "" },
     title: { type: "string" },
@@ -141,6 +142,14 @@ switch (command) {
     // --file: `wrangler deployments status` output. Prints PREVIOUS=<id> for $GITHUB_ENV.
     need("file");
     console.log(`PREVIOUS=${parseActiveVersion(readFileSync(opt.file, "utf8"))}`);
+    break;
+  }
+  case "assert-active": {
+    // --file: `wrangler deployments status` output after promotion; --version: the id just promoted.
+    need("file", "version");
+    const active = parseActiveVersion(readFileSync(opt.file, "utf8"));
+    if (active !== opt.version) throw new Error(`${active} is serving, expected ${opt.version}`);
+    console.log(`PASS     ${opt.version} serves 100%`);
     break;
   }
   case "version-info": {

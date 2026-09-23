@@ -34,7 +34,21 @@ describe("site-pr.yml", () => {
   });
 });
 
+describe("site-deploy.yml", () => {
+  it("confirms promotion through the Cloudflare API, never by fetching the challenged real hostname", () => {
+    const t = text("site-deploy.yml");
+    expect(t).toContain('assert-active --file after.txt --version "$VERSION"');
+    expect(t).not.toContain("https://${TARGET_HOST}");
+  });
+});
+
 describe("site-weekly.yml", () => {
+  it("excludes every family domain from the external link check (the zones challenge runners)", () => {
+    const t = text("site-weekly.yml");
+    for (const host of ["bbking[.]net", "brianbk[.]ing", "jillk[.]ing", "kingfamily[.]info", "masonbk[.]ing", "w3bbk[.]us"]) {
+      expect(t).toContain(host);
+    }
+  });
   it("fetches security.txt with curl (the zones challenge Node) and evaluates the file", () => {
     const t = text("site-weekly.yml");
     expect(t).toMatch(/curl .*\.well-known\/security\.txt/);

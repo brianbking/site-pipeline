@@ -1,7 +1,7 @@
 name: site-deploy
 
 # Reusable deploy: build -> upload version -> smoke the version's preview URL -> promote to 100%
-# -> check the real hostname -> roll back to the previous version if that check fails.
+# -> confirm via the API that it serves -> roll back to the previous version if not.
 on:
   workflow_call:
     inputs:
@@ -55,8 +55,8 @@ jobs:
       - name: Validate inputs
         run: |
           case "$ENVIRONMENT" in
-            staging)    echo "ENV_FLAG=--env staging" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}-staging" >> "$GITHUB_ENV"; echo "TARGET_HOST=staging.${HOST}" >> "$GITHUB_ENV";;
-            production) echo "ENV_FLAG=--env=" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}" >> "$GITHUB_ENV"; echo "TARGET_HOST=${HOST}" >> "$GITHUB_ENV";;
+            staging)    echo "ENV_FLAG=--env staging" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}-staging" >> "$GITHUB_ENV";;
+            production) echo "ENV_FLAG=--env=" >> "$GITHUB_ENV"; echo "TARGET_WORKER=${WORKER}" >> "$GITHUB_ENV";;
             *) echo "::error::environment must be staging or production, got '$ENVIRONMENT'"; exit 1;;
           esac
 
@@ -126,28 +126,21 @@ jobs:
           # shellcheck disable=SC2086
           npx wrangler versions deploy "${VERSION}@100%" $ENV_FLAG --yes --message "deploy ${GITHUB_SHA}"
 
-      - name: Check the real hostname
-        id: hostcheck
+      - name: Confirm the new version serves 100%
+        id: promoted
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # curl, not Node: the zones 403-challenge Node's TLS fingerprint (see pilot findings).
-          UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36 site-pipeline'
-          for i in 1 2 3 4 5 6; do
-            code=$(curl -s -o /dev/null -D headers.txt -A "$UA" -w '%{http_code}' "https://${TARGET_HOST}/")
-            redirect=$(grep -i '^location:' headers.txt | tr -d '\r' | cut -d' ' -f2 || true)
-            robots=$(grep -i '^x-robots-tag:' headers.txt | tr -d '\r' | cut -d' ' -f2- || true)
-            echo "attempt $i: code=$code location=$redirect x-robots-tag=$robots"
-            if [ "$ENVIRONMENT" = staging ]; then
-              # Staging sits behind Cloudflare Access: an unauthenticated request must be redirected to login.
-              case "$redirect" in https://*.cloudflareaccess.com/*) exit 0;; esac
-            else
-              [ "$code" = 200 ] && [[ "$robots" != *noindex* ]] && exit 0
-            fi
-            sleep 10
-          done
-          exit 1
+          # Asked of the Cloudflare API, not the real hostname: the zones challenge GitHub runner IPs
+          # (W3BBK pilot). Content was already checked on this exact version's preview URL above, and
+          # `versions deploy` never changes domains or routes.
+          # shellcheck disable=SC2086
+          npx wrangler deployments status $ENV_FLAG | tee after.txt
+          node .site-pipeline/checks/cli.mjs assert-active --file after.txt --version "$VERSION"
 
       - name: Roll back
-        if: failure() && steps.hostcheck.outcome == 'failure' && env.PREVIOUS != ''
+        if: failure() && steps.promoted.outcome == 'failure' && env.PREVIOUS != ''
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
