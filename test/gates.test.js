@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PNG } from "pngjs";
 import { comparePngs, evaluateVisual, MAX_DIFF_RATIO } from "../checks/visual.mjs";
-import { evaluateLighthouse, median, medianScores } from "../checks/lighthouse.mjs";
+import { LIGHTHOUSE_FLAGS, evaluateLighthouse, median, medianScores } from "../checks/lighthouse.mjs";
 import {
   issueAction,
   parseActiveVersion,
@@ -52,8 +52,18 @@ describe("lighthouse gate", () => {
     expect(medianScores([{ performance: 0.5, accessibility: 1, "best-practices": 1, seo: 0.9 }, { performance: 0.7, accessibility: 1, "best-practices": 1, seo: 0.9 }, { performance: 0.9, accessibility: 1, "best-practices": 1, seo: 0.9 }]))
       .toEqual(scores(70, 100, 100, 90));
   });
-  it("passes at the edges: 95 and a 10-point drop", () => {
-    expect(evaluateLighthouse([{ page: "/", candidate: scores(80, 95, 95, 95), baseline: scores(90, 100, 100, 100) }])).toEqual([]);
+  it("passes at the edges: accessibility 95, a 10-point performance drop, BP/SEO equal to production", () => {
+    expect(evaluateLighthouse([{ page: "/", candidate: scores(80, 95, 92, 58), baseline: scores(90, 100, 92, 58) }])).toEqual([]);
+  });
+  it("judges best practices and SEO against production, not an absolute bar (previews distort both)", () => {
+    const found = evaluateLighthouse([{ page: "/", candidate: scores(90, 100, 91, 57), baseline: scores(90, 100, 92, 58) }]);
+    expect(found.map((f) => f.message)).toEqual([
+      "best-practices 91 is below production (92)",
+      "seo 57 is below production (58)",
+    ]);
+  });
+  it("skips is-crawlable, which Cloudflare forces to fail on every preview URL", () => {
+    expect(LIGHTHOUSE_FLAGS.skipAudits).toContain("is-crawlable");
   });
   it("fails below 95 and on a drop over 10", () => {
     const found = evaluateLighthouse([{ page: "/", candidate: scores(79, 94, 100, 100), baseline: scores(90, 100, 100, 100) }]);
