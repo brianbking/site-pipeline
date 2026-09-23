@@ -55,14 +55,25 @@ describe("checkSmoke", () => {
     expect(await checkSmoke("https://site.test", { staging: true, fetchImpl: deployed({ SITE_ENV: "staging" }) })).toEqual([]);
   });
 
-  it("fails production that is noindex (staging config leaked)", async () => {
+  it("fails production that serves the staging disallow-all robots.txt (staging config leaked)", async () => {
     const found = await checkSmoke("https://site.test", { fetchImpl: deployed({ SITE_ENV: "staging" }) });
-    expect(found[0].message).toBe('production response is noindex ("noindex, nofollow")');
+    expect(found.map((f) => f.message)).toEqual(["production robots.txt is the staging disallow-all file"]);
   });
 
-  it("fails staging that is indexable and serves the production robots.txt", async () => {
+  it("fails staging that serves the production robots.txt", async () => {
     const messages = (await checkSmoke("https://site.test", { staging: true, fetchImpl: deployed() })).map((f) => f.message);
-    expect(messages).toEqual(["staging response is not X-Robots-Tag noindex", "staging robots.txt is not the disallow-all file"]);
+    expect(messages).toEqual(["staging robots.txt is not the disallow-all file"]);
+  });
+
+  it("ignores the x-robots-tag: noindex that Cloudflare forces onto every preview URL", async () => {
+    const inner = deployed();
+    const preview = async (url, init) => {
+      const res = await inner(url, init);
+      const headers = new Headers(res.headers);
+      headers.set("x-robots-tag", "noindex");
+      return new Response(res.body, { status: res.status, headers });
+    };
+    expect(await checkSmoke("https://site.test", { pages: ["/", "/about/"], fetchImpl: preview })).toEqual([]);
   });
 
   it("fails a page that does not return 200", async () => {
