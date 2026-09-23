@@ -198,6 +198,33 @@ export function checkMdSiblings({ dir }) {
   return failures;
 }
 
+/**
+ * Production must stay indexable. Checked on the build, not live: Cloudflare forces
+ * x-robots-tag: noindex onto every preview URL, which is why Lighthouse skips is-crawlable.
+ */
+export function checkIndexable({ dir }) {
+  const failures = [];
+  for (const rel of readdirSync(dir, { recursive: true })) {
+    const path = String(rel).split("\\").join("/");
+    if (!path.endsWith(".html")) continue;
+    const html = readText(dir, path) ?? "";
+    for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+      if (!/name\s*=\s*["']?(robots|googlebot)["'\s>]/i.test(tag)) continue;
+      const content = tag.match(/content\s*=\s*["']([^"']*)["']/i)?.[1] ?? "";
+      if (/\bnoindex\b|\bnone\b/i.test(content)) {
+        failures.push(fail("indexable", path, `meta robots "${content}" would de-index this page`));
+      }
+    }
+  }
+  (readText(dir, "_headers") ?? "").split(/\r?\n/).forEach((line, i) => {
+    const m = line.match(/^\s+X-Robots-Tag:\s*(.+)$/i);
+    if (m && /\bnoindex\b|\bnone\b/i.test(m[1])) {
+      failures.push(fail("indexable", `_headers:${i + 1}`, `X-Robots-Tag "${m[1].trim()}" would de-index production`));
+    }
+  });
+  return failures;
+}
+
 export const OFFLINE_CHECKS = {
   headers: checkHeaders,
   llms: checkLlms,
@@ -206,4 +233,5 @@ export const OFFLINE_CHECKS = {
   webmanifest: checkWebmanifest,
   "agent-card": checkAgentCard,
   "md-siblings": checkMdSiblings,
+  indexable: checkIndexable,
 };

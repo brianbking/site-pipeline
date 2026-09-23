@@ -190,6 +190,25 @@ describe("agent-card", () => {
   });
 });
 
+describe("indexable", () => {
+  it("flags a robots meta tag that de-indexes a production page", async () => {
+    const dir = site({ "about/index.html": '<!doctype html><meta name="robots" content="noindex, follow"><title>About</title>' });
+    expect(await run("indexable", dir)).toEqual([
+      { check: "indexable", file: "about/index.html", message: 'meta robots "noindex, follow" would de-index this page' },
+    ]);
+  });
+  it("flags an X-Robots-Tag noindex in _headers", async () => {
+    const dir = site({ _headers: "/*\n  X-Robots-Tag: noindex, noai\n" });
+    expect(await run("indexable", dir)).toEqual([
+      { check: "indexable", file: "_headers:2", message: 'X-Robots-Tag "noindex, noai" would de-index production' },
+    ]);
+  });
+  it("allows the sites' own noai signals", async () => {
+    const dir = site({ _headers: "/*\n  X-Robots-Tag: noai, noimageai\n" });
+    expect(await run("indexable", dir)).toEqual([]);
+  });
+});
+
 describe("md-siblings", () => {
   it("flags an HTML page with no markdown sibling", async () => {
     expect(await run("md-siblings", site({ "about/index.md": null }))).toEqual([

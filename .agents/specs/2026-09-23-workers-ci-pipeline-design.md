@@ -202,15 +202,20 @@ Delete stale `brianbking.pages.dev` in wave 4 after confirming no custom domain 
   scope unless pulled in.
 - `security.txt` `Expires` is 2029; RFC 9116 recommends (SHOULD) under one year. No change planned.
 
-## Revisions from planning (2026-09-23)
+## Revisions from planning and the W3BBK pilot (2026-09-23)
 
 Found while writing and running the plan's code; the plan implements these, not the text above.
 
 | Area | Change | Why |
 |---|---|---|
-| Live checks | Every Node/Playwright/Lighthouse check targets `workers.dev` version preview URLs, including staging and production smoke (run **before** promotion). Only a curl check touches real hostnames. | Node `fetch` is 403-challenged on all six zones whatever its user agent; curl with a browser UA is not. |
-| Access | No CI service token. The staging check asserts `staging.<host>` redirects to `*.cloudflareaccess.com`. | Follows from the row above; also proves the gate is on. |
-| Rollback | Re-deploy the recorded previous version ID at 100 % instead of `wrangler rollback`. | Deterministic target. |
+| Live checks | Every Node/Playwright/Lighthouse check targets `workers.dev` version preview URLs, including staging and production smoke (run **before** promotion). Only the weekly security.txt curl touches a real hostname (Cloudflare serves that file ahead of the challenge). | The zones challenge Node `fetch` everywhere and challenge curl too from GitHub runner IPs (pilot). |
+| Access | No CI service token, and **no CI check of the Access gate**: a hostname check cannot pass the runner challenge. Each wave's setup checklist verifies `staging.<host>` redirects to `*.cloudflareaccess.com` by hand. | Pilot: the v0.1.0 redirect assertion got 403 from runners and was removed in v0.1.4. |
+| Rollback | Re-deploy the recorded previous version ID at 100 % instead of `wrangler rollback`, triggered when the post-promotion check fails. | Deterministic target. |
+| Post-promotion check | `wrangler deployments status` must show the new version at 100 %; no real-hostname fetch. Supersedes "production smoke → auto-rollback" in Pipeline and Checks: smoke now runs **before** promotion, and a failed smoke simply never promotes. | Runner IPs are challenged; `versions deploy` never changes domains or routes (Brian, pilot). |
+| Environment check | Smoke judges staging vs production by the Worker-written `robots.txt` (disallow-all only on staging), not `X-Robots-Tag`. A new offline `indexable` check fails any production build with `noindex` in a robots meta tag or `_headers`. | Cloudflare forces `x-robots-tag: noindex` on every preview URL (pilot, v0.1.5; review, v0.1.7). |
+| Lighthouse | Accessibility **≥ 95** absolute; Best Practices and SEO must **not drop below production** (0 tolerance); Performance ≤ 10 below production; `is-crawlable` skipped. Supersedes "A11y/BP/SEO ≥ 95 hard". | Preview hosting distorts BP (cross-origin absolute asset URLs vs CSP) and SEO (forced noindex) (Brian, pilot, v0.1.3). |
+| Deploy guard | `site-deploy.yml` refuses staging from any ref but `staging` and production from any ref but `main`. | A manual dispatch from a feature branch would otherwise put ungated code on staging (review, v0.1.7). |
+| Weekly link check | Excludes every family domain by default. | Runner IPs are challenged; own-site links are checked offline on every PR. |
 | Pinning | The site's workflow `uses:` tag is the single pin; CI installs the Worker from that tag. Dependabot `github-actions` bumps it. `toolchain-bump.yml` opens PRs only in `site-pipeline`. | No cross-repo token; one source of truth. |
 | Dependabot merges | The merge job dispatches `deploy.yml` on `staging`. | Pushes made with `GITHUB_TOKEN` trigger no workflows. |
 | Artifacts | `include-hidden-files: true`. | `upload-artifact@v4` drops `public/.well-known/` otherwise. |
@@ -218,7 +223,7 @@ Found while writing and running the plan's code; the plan implements these, not 
 | Validators | Hand-rolled sitemap and Agent Card rules instead of an XSD or JSON Schema; Lighthouse via its Node API instead of `@lhci/cli`. | Marked `minimal:` in code with the upgrade path. |
 | `run_worker_first` | `true` instead of an HTML-route list. | Route-pattern syntax unverified; tiny traffic. Marked `minimal:`. |
 | Wave split | Formspree checks move to the wave 3 plan and the PDF step to wave 4. | The pilot site has neither. |
-| Findings | `_headers` rules **are** applied to `env.ASSETS.fetch` responses under `wrangler dev`; to re-confirm on a real deploy. MasonBK.ing's `robots.txt` names `kingfamily.info` as its sitemap host, and its `/family/` and `/friends/` pages have no `.md` sibling. Both are caught by the offline checks for wave 5. | |
+| Findings | `_headers` rules **are** applied to `env.ASSETS.fetch` responses (confirmed on the real staging deploy). Full pilot findings: `.agents/findings/2026-09-23-w3bbk-pilot.md`. MasonBK.ing's `robots.txt` names `kingfamily.info` as its sitemap host, and its `/family/` and `/friends/` pages have no `.md` sibling. Both are caught by the offline checks for wave 5. | |
 
 ## Out of scope
 

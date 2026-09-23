@@ -34,6 +34,13 @@ describe("site-pr.yml", () => {
   });
 });
 
+describe("site-deploy.yml branch guard", () => {
+  it("deploys staging only from the staging branch and production only from main", () => {
+    expect(text("site-deploy.yml")).toContain('case "${ENVIRONMENT}:${GITHUB_REF_NAME}" in');
+    expect(text("site-deploy.yml")).toContain("staging:staging|production:main) ;;");
+  });
+});
+
 describe("site-deploy.yml", () => {
   it("confirms promotion through the Cloudflare API, never by fetching the challenged real hostname", () => {
     const t = text("site-deploy.yml");
