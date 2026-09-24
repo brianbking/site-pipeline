@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { checkFormspree, formspreeForms } from "../checks/offline.mjs";
+import { checkFormspreeCanary } from "../checks/live.mjs";
 
 // The contact form as Hugo --minify writes it: bare attribute values, boolean `required`.
 const form = ({ action = "https://formspree.io/f/abc123", method = "post", email = "<input type=email name=email required>" } = {}) =>
@@ -74,5 +75,34 @@ describe("checkFormspree", () => {
   it("ignores forms that do not post to Formspree", () => {
     const dir = build({ "search/index.html": "<form action=/search method=get><input name=q></form>" });
     expect(formspreeForms(dir)).toEqual([]);
+  });
+});
+
+describe("checkFormspreeCanary", () => {
+  const answer = (status, body, seen = []) => async (url, init) => {
+    seen.push({ url, init });
+    return new Response(body, { status, headers: { "Content-Type": "application/json" } });
+  };
+
+  it("passes when Formspree accepts a JSON submission marked [CI canary]", async () => {
+    const seen = [];
+    const found = await checkFormspreeCanary("abc123", "kingfamily.info", { fetchImpl: answer(200, '{"next":"/thanks","ok":true}', seen) });
+    expect(found).toEqual([]);
+    expect(seen[0].url).toBe("https://formspree.io/f/abc123");
+    expect(seen[0].init.method).toBe("POST");
+    expect(seen[0].init.headers.Accept).toBe("application/json");
+    expect(JSON.parse(seen[0].init.body)._subject).toBe("[CI canary] kingfamily.info");
+  });
+
+  it("fails with the status and Formspree's error when the submission is refused", async () => {
+    const found = await checkFormspreeCanary("abc123", "kingfamily.info", { fetchImpl: answer(403, '{"error":"reCAPTCHA failed"}') });
+    expect(found).toEqual([
+      { check: "formspree-canary", file: "https://formspree.io/f/abc123", message: 'returned 403: {"error":"reCAPTCHA failed"}' },
+    ]);
+  });
+
+  it("fails on a 200 that is not {ok:true} (an HTML captcha page)", async () => {
+    const found = await checkFormspreeCanary("abc123", "kingfamily.info", { fetchImpl: answer(200, "<html>Please verify</html>") });
+    expect(found[0].message).toBe("returned 200: <html>Please verify</html>");
   });
 });

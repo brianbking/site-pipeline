@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { OFFLINE_CHECKS, formspreeForms } from "./offline.mjs";
-import { checkNegotiationLive, checkSecurityTxt, checkSmoke, evaluateSecurityTxt } from "./live.mjs";
+import { checkFormspreeCanary, checkNegotiationLive, checkSecurityTxt, checkSmoke, evaluateSecurityTxt } from "./live.mjs";
 import { evaluateLighthouse, runLighthouse } from "./lighthouse.mjs";
 import { VIEWPORTS, capture, comparePngs, evaluateVisual } from "./visual.mjs";
 import { execFileSync } from "node:child_process";
@@ -89,6 +89,16 @@ switch (command) {
     // --file: a copy fetched with curl (the zones challenge Node's fetch); otherwise fetch it here.
     need("host");
     report("security.txt", opt.file ? evaluateSecurityTxt(readFileSync(opt.file, "utf8"), opt.host) : await checkSecurityTxt(opt.host));
+    break;
+  }
+  case "formspree-canary": {
+    // The ID comes from the built form, so the canary exercises exactly what is deployed.
+    need("host");
+    const ids = [...new Set(formspreeForms(opt.dir).map((f) => f.id).filter(Boolean))];
+    if (ids.length === 0) report("formspree canary (no Formspree form in the build)", [], "skip");
+    const failures = [];
+    for (const id of ids) failures.push(...(await checkFormspreeCanary(id, opt.host)));
+    report(`formspree canary (${ids.join(", ")})`, failures);
     break;
   }
   case "visual": {

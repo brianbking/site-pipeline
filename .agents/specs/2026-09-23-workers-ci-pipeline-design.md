@@ -197,7 +197,6 @@ Delete stale `brianbking.pages.dev` in wave 4 after confirming no custom domain 
 
 ## Open items
 
-- Is the shared Formspree ID `mgeggkzw` (BrianBK.ing + KingFamily) intentional?
 - Contact form name `pattern="[A-Za-z\s]+"` rejects hyphens, apostrophes and accents — out of
   scope unless pulled in.
 - `security.txt` `Expires` is 2029; RFC 9116 recommends (SHOULD) under one year. No change planned.
@@ -224,6 +223,7 @@ Found while writing and running the plan's code; the plan implements these, not 
 | `run_worker_first` | `true` instead of an HTML-route list. | Route-pattern syntax unverified; tiny traffic. Marked `minimal:`. |
 | Wave split | Formspree checks move to the wave 3 plan and the PDF step to wave 4. | The pilot site has neither. |
 | Findings | `_headers` rules **are** applied to `env.ASSETS.fetch` responses (confirmed on the real staging deploy). Full pilot findings: `.agents/findings/2026-09-23-w3bbk-pilot.md`. MasonBK.ing's `robots.txt` names `kingfamily.info` as its sitemap host, and its `/family/` and `/friends/` pages have no `.md` sibling. Both are caught by the offline checks for wave 5. | |
+| Formspree | No `Formspree IDs` workflow input. The PR check reads the site's `params.toml` `formspreeId` via `hugo config`; the weekly canary takes the ID from the built form. BrianBK.ing and KingFamily sharing `mgeggkzw` is intentional (same destination); they can diverge by editing one site's `params.toml`. | One source of truth per site (Brian, wave 3 planning). |
 
 ## Out of scope
 

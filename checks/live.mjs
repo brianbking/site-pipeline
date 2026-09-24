@@ -135,3 +135,31 @@ export async function checkSecurityTxt(host, { fetchImpl = fetch, now = new Date
   if (res.status !== 200) return [fail("security-txt", url, `returned ${res.status}`)];
   return evaluateSecurityTxt(await res.text(), host, { now });
 }
+
+/**
+ * Weekly Formspree canary: one real JSON submission, marked [CI canary] in its subject, must be
+ * accepted with {"ok":true}. formspree.io is not a family zone, so Node's fetch is not challenged.
+ */
+export async function checkFormspreeCanary(id, host, { fetchImpl = fetch, now = new Date() } = {}) {
+  const url = `https://formspree.io/f/${id}`;
+  const res = await fetchImpl(url, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: `canary@${host}`,
+      _subject: `[CI canary] ${host}`,
+      message: `site-pipeline weekly canary for ${host} at ${now.toISOString()}. No reply needed.`,
+    }),
+  });
+  const text = await res.text();
+  let body = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    // not JSON: a captcha or error page; reported below
+  }
+  if (res.status !== 200 || body?.ok !== true) {
+    return [fail("formspree-canary", url, `returned ${res.status}: ${text.slice(0, 200).replace(/\s+/g, " ")}`)];
+  }
+  return [];
+}

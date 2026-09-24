@@ -66,6 +66,12 @@ describe("site-weekly.yml", () => {
       expect(t).toContain(host);
     }
   });
+  it("runs the Formspree canary on the built site and tracks failures in one issue", () => {
+    const t = text("site-weekly.yml");
+    expect(t).toContain('formspree-canary --dir public --host "$HOST" | tee canary.txt');
+    expect(t).toContain("FAILED: ${{ steps.canary.outcome == 'failure' }}");
+    expect(t).toContain('issue --title "site-pipeline: weekly Formspree canary failing" --file canary.txt');
+  });
   it("fetches security.txt with curl (the zones challenge Node) and evaluates the file", () => {
     const t = text("site-weekly.yml");
     expect(t).toMatch(/curl .*\.well-known\/security\.txt/);

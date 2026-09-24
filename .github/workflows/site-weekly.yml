@@ -83,6 +83,21 @@ jobs:
           if [ "$FAILED" = true ]; then extra+=(--failing); fi
           node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly security.txt failing" --file sectxt.txt "${extra[@]}"
 
+      - name: Formspree canary
+        id: canary
+        continue-on-error: true
+        # The ID comes from the built form; a site with no Formspree form reports SKIP and passes.
+        run: node .site-pipeline/checks/cli.mjs formspree-canary --dir public --host "$HOST" | tee canary.txt
+
+      - name: Formspree canary issue
+        if: always()
+        env:
+          FAILED: ${{ steps.canary.outcome == 'failure' }}
+        run: |
+          extra=()
+          if [ "$FAILED" = true ]; then extra+=(--failing); fi
+          node .site-pipeline/checks/cli.mjs issue --title "site-pipeline: weekly Formspree canary failing" --file canary.txt "${extra[@]}"
+
       - name: Build lychee exclude args
         run: |
           # Own-site links are already checked offline on every PR. [.] escapes dots without backslashes.

@@ -27,6 +27,12 @@ tag so local `wrangler dev` runs the same Worker.
 
 Secrets (repo **and** Dependabot): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
 
+**Formspree.** A site's form ID lives only in its own `config/_default/params.toml` (`formspreeId`).
+`site-pr.yml` reads it with `hugo config` and fails the PR if a built form posts anywhere else, the
+action is malformed, `email`/`message` are not required, or a CSP `form-action` blocks Formspree.
+`site-weekly.yml` sends one real submission (subject `[CI canary] <host>`) to each ID found in the
+built forms. Sites without a form skip both.
+
 ## Development
 
 ```bash
