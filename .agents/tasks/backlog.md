@@ -13,7 +13,6 @@ _Updated: 2026-09-23 (after pilot)_
 
 ## Planned
 
-- [ ] **Wave 2: BBKing.net** — config-only port of the pilot, plus footer contrast fix (local A11y 87) and untracking `.hugo_build.lock`; tag `v1.0.0` after — [plan](../plans/2026-09-23-site-pipeline-wave2-bbking.md)
 
 ---
 
@@ -25,6 +24,8 @@ _Updated: 2026-09-23 (after pilot)_
 - [ ] **Wave 5: MasonBK.ing** — Pages → Workers in the M@sonBK.ing account; fix `robots.txt` sitemap host; decide `.md` for `/family/`, `/friends/` _(Source: spec rollout)_
 
 ### Medium Priority
+- [ ] **Relative asset URLs in the sites** — absolute `https://<host>/js/scripts.js` is CSP-blocked on preview origins, distorting visual (BBKing heading shadow) and BP baselines; every PR against the stale baseline needs `approved-visual-change` _(Source: wave 2 findings)_
+- [ ] **Secrets snippet for waves 3–5** — use `gh secret set NAME --body (op read …).Trim()`; piping under PS 5.1 stores a trailing CRLF _(Source: wave 2 findings)_
 - [ ] **Shared Formspree ID `mgeggkzw`** — confirm BrianBK.ing + KingFamily sharing one form is intended _(Source: spec open items)_
 
 ### Low Priority / Nice to Have
@@ -39,6 +40,8 @@ _Updated: 2026-09-23 (after pilot)_
 ---
 
 ## Completed
+
+- [x] **Wave 2: BBKing.net + site-pipeline v1.0.0** — bbking.net on Actions → Workers, serves markdown; staging behind Access; `v1.0.0` tagged — _Completed: 2026-09-23_ — [plan](../plans/2026-09-23-site-pipeline-wave2-bbking.md), [findings](../findings/2026-09-23-w3bbk-pilot.md#wave-2--bbkingnet-2026-09-23)
 
 - [x] **Release v0.1.7 to W3BBK** — indexable check + deploy branch guard live in production — _Completed: 2026-09-23_
 - [x] **Phase 0 + W3BBK.us pilot** — site-pipeline v0.1.0–v0.1.6 public; w3bbk.us deploys via Actions and serves markdown — _Completed: 2026-09-23_ — [plan](../plans/2026-09-23-site-pipeline-phase0-w3bbk-pilot.md), [findings](../findings/2026-09-23-w3bbk-pilot.md)
