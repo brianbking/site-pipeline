@@ -225,6 +225,76 @@ export function checkIndexable({ dir }) {
   return failures;
 }
 
+const FORMSPREE_ACTION = /^https:\/\/formspree\.io\/f\/([A-Za-z0-9]+)$/;
+
+/** Value of attribute `name` in one start tag (quoted or, as Hugo --minify writes them, bare), or null. */
+function attr(tag, name) {
+  const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, "i"));
+  return m ? (m[1] ?? m[2] ?? m[3]) : null;
+}
+const hasFlag = (tag, name) => new RegExp(`\\s${name}(?=[\\s>=/])`, "i").test(tag);
+
+/**
+ * Every built <form> whose action points at Formspree: { file, action, id, open, body }.
+ * `id` is null when the action is not exactly https://formspree.io/f/<id> (e.g. an empty param).
+ */
+export function formspreeForms(dir) {
+  const forms = [];
+  for (const rel of readdirSync(dir, { recursive: true })) {
+    const path = String(rel).split("\\").join("/");
+    if (!path.endsWith(".html")) continue;
+    for (const [, open, body] of (readText(dir, path) ?? "").matchAll(/(<form\b[^>]*>)([\s\S]*?)<\/form>/gi)) {
+      const action = attr(open, "action") ?? "";
+      if (!/formspree\.io/i.test(action)) continue;
+      forms.push({ file: path, action, id: action.match(FORMSPREE_ACTION)?.[1] ?? null, open, body });
+    }
+  }
+  return forms;
+}
+
+/** _headers CSP lines whose form-action would block a POST to Formspree. */
+function cspBlocksFormspree(dir) {
+  const failures = [];
+  (readText(dir, "_headers") ?? "").split(/\r?\n/).forEach((line, i) => {
+    const csp = line.match(/^\s+Content-Security-Policy:\s*(.+)$/i)?.[1];
+    const directive = csp?.split(";").map((d) => d.trim().split(/\s+/)).find(([n]) => n.toLowerCase() === "form-action");
+    if (!directive) return; // form-action does not fall back to default-src
+    const ok = directive.slice(1).some((s) => ["*", "https:", "formspree.io", "https://formspree.io", "https://formspree.io/"].includes(s.toLowerCase()));
+    if (!ok) failures.push(fail("formspree", `_headers:${i + 1}`, `CSP form-action "${directive.slice(1).join(" ")}" blocks https://formspree.io`));
+  });
+  return failures;
+}
+
+/**
+ * Formspree forms post to the site's own ID (params formspreeId, passed in by the workflow),
+ * by POST, with the fields Formspree needs, and the CSP lets the POST through.
+ * minimal: CSP form-action is read from every _headers rule, not matched per path; upgrade path
+ * is matching each form's page against the _headers path patterns.
+ */
+export function checkFormspree({ dir, formspreeId }) {
+  const forms = formspreeForms(dir);
+  const failures = [];
+  if (forms.length === 0) {
+    if (formspreeId) failures.push(fail("formspree", "params.formspreeId", `"${formspreeId}" is set but no built page has a Formspree form`));
+    return failures;
+  }
+  for (const { file, action, id, open, body } of forms) {
+    if (!id) failures.push(fail("formspree", file, `form action "${action}" is not https://formspree.io/f/<id>`));
+    else if (formspreeId !== undefined && id !== formspreeId) {
+      failures.push(fail("formspree", file, `form posts to ${id}, but params formspreeId is "${formspreeId}"`));
+    }
+    if ((attr(open, "method") ?? "get").toLowerCase() !== "post") failures.push(fail("formspree", file, "form method must be post"));
+    const fields = [...body.matchAll(/<(?:input|textarea|select)\b[^>]*>/gi)].map(([tag]) => tag);
+    const email = fields.find((t) => attr(t, "name") === "email");
+    if (!email || (attr(email, "type") ?? "").toLowerCase() !== "email" || !hasFlag(email, "required")) {
+      failures.push(fail("formspree", file, 'needs a required <input type="email" name="email">'));
+    }
+    const message = fields.find((t) => attr(t, "name") === "message");
+    if (!message || !hasFlag(message, "required")) failures.push(fail("formspree", file, 'needs a required field named "message"'));
+  }
+  return [...failures, ...cspBlocksFormspree(dir)];
+}
+
 export const OFFLINE_CHECKS = {
   headers: checkHeaders,
   llms: checkLlms,
@@ -234,4 +304,5 @@ export const OFFLINE_CHECKS = {
   "agent-card": checkAgentCard,
   "md-siblings": checkMdSiblings,
   indexable: checkIndexable,
+  formspree: checkFormspree,
 };

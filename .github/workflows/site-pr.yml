@@ -82,7 +82,9 @@ jobs:
           HOST: ${{ inputs.host }}
         run: |
           mkdir -p results
-          node .site-pipeline/checks/cli.mjs offline --dir public --host "$HOST" --json results/10-offline.json
+          # The site's params.toml is the one place its Formspree ID lives (empty when it has no form).
+          FORMSPREE_ID=$(hugo config --format json | jq -r '.params.formspreeid // ""')
+          node .site-pipeline/checks/cli.mjs offline --dir public --host "$HOST" --formspree-id "$FORMSPREE_ID" --json results/10-offline.json
 
       - uses: actions/upload-artifact@v4
         with:

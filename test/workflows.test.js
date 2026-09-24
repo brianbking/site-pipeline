@@ -29,6 +29,11 @@ describe("site-pr.yml", () => {
     expect(install).toBeGreaterThan(-1);
     expect(install).toBeLessThan(gate.indexOf("checks/cli.mjs summary"));
   });
+  it("passes the site's own params formspreeId to the offline checks", () => {
+    const t = text("site-pr.yml");
+    expect(t).toContain(`FORMSPREE_ID=$(hugo config --format json | jq -r '.params.formspreeid // ""')`);
+    expect(t).toContain('offline --dir public --host "$HOST" --formspree-id "$FORMSPREE_ID"');
+  });
   it("requires every live result file in the summary", () => {
     expect(text("site-pr.yml")).toContain("--expect 10-offline,20-negotiate,30-visual,40-lighthouse");
   });

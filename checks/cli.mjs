@@ -4,7 +4,7 @@
 import { parseArgs } from "node:util";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { OFFLINE_CHECKS } from "./offline.mjs";
+import { OFFLINE_CHECKS, formspreeForms } from "./offline.mjs";
 import { checkNegotiationLive, checkSecurityTxt, checkSmoke, evaluateSecurityTxt } from "./live.mjs";
 import { evaluateLighthouse, runLighthouse } from "./lighthouse.mjs";
 import { VIEWPORTS, capture, comparePngs, evaluateVisual } from "./visual.mjs";
@@ -17,6 +17,7 @@ const { values: opt } = parseArgs({
   options: {
     dir: { type: "string", default: "public" },
     host: { type: "string" },
+    "formspree-id": { type: "string" },
     base: { type: "string" },
     baseline: { type: "string" },
     candidate: { type: "string" },
@@ -68,7 +69,9 @@ switch (command) {
   case "offline": {
     need("host");
     const failures = [];
-    for (const check of Object.values(OFFLINE_CHECKS)) failures.push(...(await check({ dir: opt.dir, host: opt.host })));
+    for (const check of Object.values(OFFLINE_CHECKS)) {
+      failures.push(...(await check({ dir: opt.dir, host: opt.host, formspreeId: opt["formspree-id"] })));
+    }
     report("offline checks", failures);
     break;
   }
