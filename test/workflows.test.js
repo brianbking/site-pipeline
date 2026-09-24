@@ -72,6 +72,9 @@ describe("site-weekly.yml", () => {
     expect(t).toContain("FAILED: ${{ steps.canary.outcome == 'failure' }}");
     expect(t).toContain('issue --title "site-pipeline: weekly Formspree canary failing" --file canary.txt');
   });
+  it("excludes Formspree form endpoints from the link check (a POST-only URL answers GET with 405)", () => {
+    expect(text("site-weekly.yml")).toContain("^https://formspree[.]io/f/");
+  });
   it("fetches security.txt with curl (the zones challenge Node) and evaluates the file", () => {
     const t = text("site-weekly.yml");
     expect(t).toMatch(/curl .*\.well-known\/security\.txt/);
