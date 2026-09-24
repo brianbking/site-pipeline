@@ -89,3 +89,21 @@ describe("security-txt --file", () => {
     expect(res.stdout).toMatch(/expired on 2001/);
   });
 });
+
+describe("formspree-canary", () => {
+  it("skips a build with no Formspree form", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "index.html"), "<!doctype html><title>Home</title>");
+    const res = run("formspree-canary", "--dir", dir, "--host", "example.test");
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/^SKIP/);
+  });
+
+  it("fails, not skips, when the only form has a malformed action (no request is sent)", () => {
+    const dir = tmp();
+    writeFileSync(join(dir, "index.html"), "<form action=https://formspree.io/f/ method=post><input type=email name=email required></form>");
+    const res = run("formspree-canary", "--dir", dir, "--host", "example.test");
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('index.html: form action "https://formspree.io/f/" is not https://formspree.io/f/<id>');
+  });
+});

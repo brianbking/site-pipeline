@@ -138,7 +138,7 @@ export async function checkSecurityTxt(host, { fetchImpl = fetch, now = new Date
 
 /**
  * Weekly Formspree canary: one real JSON submission, marked [CI canary] in its subject, must be
- * accepted with {"ok":true}. formspree.io is not a family zone, so Node's fetch is not challenged.
+ * accepted with {"ok":true}, or refused only for reCAPTCHA. formspree.io is not a family zone, so Node's fetch is not challenged.
  */
 export async function checkFormspreeCanary(id, host, { fetchImpl = fetch, now = new Date() } = {}) {
   const url = `https://formspree.io/f/${id}`;
@@ -158,6 +158,10 @@ export async function checkFormspreeCanary(id, host, { fetchImpl = fetch, now = 
   } catch {
     // not JSON: a captcha or error page; reported below
   }
+  // A reCAPTCHA-protected form refuses JSON posts with 400 "Please complete the reCAPTCHA" (mgeggkzw,
+  // 2026-09-23); an unknown ID is 404. The refusal still proves the form exists and is enabled, which
+  // is as far as a browserless check can go (Brian, wave 3: keep reCAPTCHA on).
+  if (res.status === 400 && /reCAPTCHA/i.test(body?.error ?? "")) return [];
   if (res.status !== 200 || body?.ok !== true) {
     return [fail("formspree-canary", url, `returned ${res.status}: ${text.slice(0, 200).replace(/\s+/g, " ")}`)];
   }

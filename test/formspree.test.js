@@ -94,11 +94,15 @@ describe("checkFormspreeCanary", () => {
     expect(JSON.parse(seen[0].init.body)._subject).toBe("[CI canary] kingfamily.info");
   });
 
-  it("fails with the status and Formspree's error when the submission is refused", async () => {
-    const found = await checkFormspreeCanary("abc123", "kingfamily.info", { fetchImpl: answer(403, '{"error":"reCAPTCHA failed"}') });
-    expect(found).toEqual([
-      { check: "formspree-canary", file: "https://formspree.io/f/abc123", message: 'returned 403: {"error":"reCAPTCHA failed"}' },
-    ]);
+  it("passes when Formspree refuses only for reCAPTCHA: the form exists and is enabled", async () => {
+    const found = await checkFormspreeCanary("abc123", "kingfamily.info", { fetchImpl: answer(400, '{"error":"Please complete the reCAPTCHA"}') });
+    expect(found).toEqual([]);
+  });
+
+  it("fails with the status and Formspree's error for an unknown form", async () => {
+    const body = '{"error":"Form not found","errors":[{"code":"FORM_NOT_FOUND","message":"Form not found"}]}';
+    const found = await checkFormspreeCanary("abc123", "kingfamily.info", { fetchImpl: answer(404, body) });
+    expect(found).toEqual([{ check: "formspree-canary", file: "https://formspree.io/f/abc123", message: `returned 404: ${body}` }]);
   });
 
   it("fails on a 200 that is not {ok:true} (an HTML captcha page)", async () => {

@@ -31,7 +31,8 @@ Secrets (repo **and** Dependabot): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
 `site-pr.yml` reads it with `hugo config` and fails the PR if a built form posts anywhere else, the
 action is malformed, `email`/`message` are not required, or a CSP `form-action` blocks Formspree.
 `site-weekly.yml` sends one real submission (subject `[CI canary] <host>`) to each ID found in the
-built forms. Sites without a form skip both.
+built forms. A form with reCAPTCHA on refuses that post ("Please complete the reCAPTCHA"), which
+still counts as a pass: it proves the form exists and is enabled. Sites without a form skip both.
 
 ## Development
 

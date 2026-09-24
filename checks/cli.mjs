@@ -10,6 +10,7 @@ import { evaluateLighthouse, runLighthouse } from "./lighthouse.mjs";
 import { VIEWPORTS, capture, comparePngs, evaluateVisual } from "./visual.mjs";
 import { execFileSync } from "node:child_process";
 import { issueAction, parseActiveVersion, parseVersionUpload, renderSummary, versionPreviewUrl } from "./lib/ci.mjs";
+import { fail } from "./lib/build.mjs";
 
 const [command, ...rest] = process.argv.slice(2);
 const { values: opt } = parseArgs({
@@ -94,9 +95,11 @@ switch (command) {
   case "formspree-canary": {
     // The ID comes from the built form, so the canary exercises exactly what is deployed.
     need("host");
-    const ids = [...new Set(formspreeForms(opt.dir).map((f) => f.id).filter(Boolean))];
-    if (ids.length === 0) report("formspree canary (no Formspree form in the build)", [], "skip");
-    const failures = [];
+    const forms = formspreeForms(opt.dir);
+    if (forms.length === 0) report("formspree canary (no Formspree form in the build)", [], "skip");
+    // A malformed action (e.g. an empty formspreeId) must fail here, not vanish from the ID list.
+    const failures = forms.filter((f) => !f.id).map((f) => fail("formspree-canary", f.file, `form action "${f.action}" is not https://formspree.io/f/<id>`));
+    const ids = [...new Set(forms.map((f) => f.id).filter(Boolean))];
     for (const id of ids) failures.push(...(await checkFormspreeCanary(id, opt.host)));
     report(`formspree canary (${ids.join(", ")})`, failures);
     break;
