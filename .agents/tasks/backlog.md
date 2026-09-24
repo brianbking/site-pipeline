@@ -12,7 +12,6 @@ _Updated: 2026-09-23 (after pilot)_
 ---
 
 ## Planned
-- [ ] **Wave 3: KingFamily + site-pipeline v1.1.0** — Formspree offline check + weekly canary (ID from each site's `params.toml`); KingFamily a11y to 100; cutover — [plan](../plans/2026-09-23-site-pipeline-wave3-kingfamily.md)
 
 ---
 
@@ -23,6 +22,7 @@ _Updated: 2026-09-23 (after pilot)_
 - [ ] **Wave 5: MasonBK.ing** — Pages → Workers in the M@sonBK.ing account; fix `robots.txt` sitemap host; decide `.md` for `/family/`, `/friends/` _(Source: spec rollout)_
 
 ### Medium Priority
+- [ ] **KingFamily referral links** — weekly link check (issue brianbking/KingFamily#3): Chase referral `referyourchasecard.com/252n/X70AE3Z8MY` 404 (dead); 23andMe + The North Face 403 (likely bot-blocking runners — verify in a browser, then fix or add to the site's `link-exclude`) _(Source: wave 3 first weekly run)_
 - [ ] **Relative asset URLs in the sites** — absolute `https://<host>/js/scripts.js` is CSP-blocked on preview origins, distorting visual (BBKing heading shadow) and BP baselines; every PR against the stale baseline needs `approved-visual-change` _(Source: wave 2 findings)_
 - [ ] **Secrets snippet for waves 3–5** — use `gh secret set NAME --body (op read …).Trim()`; piping under PS 5.1 stores a trailing CRLF _(Source: wave 2 findings)_
 
@@ -41,6 +41,7 @@ _Updated: 2026-09-23 (after pilot)_
 
 ## Completed
 
+- [x] **Wave 3: KingFamily + site-pipeline v1.1.0/v1.1.1** — kingfamily.info on Actions → Workers, serves markdown; Formspree offline check + weekly canary (reCAPTCHA refusal = liveness); a11y 100; Dependabot alerts 16 → 0 — _Completed: 2026-09-24_ — [plan](../plans/2026-09-23-site-pipeline-wave3-kingfamily.md), [findings](../findings/2026-09-23-w3bbk-pilot.md)
 - [x] **Shared Formspree ID `mgeggkzw`** — intentional: BrianBK.ing + KingFamily route to the same address; may diverge later via each site's `params.toml` — _Completed: 2026-09-23_
 - [x] **Wave 2: BBKing.net + site-pipeline v1.0.0** — bbking.net on Actions → Workers, serves markdown; staging behind Access; `v1.0.0` tagged — _Completed: 2026-09-23_ — [plan](../plans/2026-09-23-site-pipeline-wave2-bbking.md), [findings](../findings/2026-09-23-w3bbk-pilot.md#wave-2--bbkingnet-2026-09-23)
 
