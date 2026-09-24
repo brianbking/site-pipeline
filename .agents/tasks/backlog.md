@@ -29,6 +29,7 @@ _Updated: 2026-09-23 (after pilot)_
 ### Low Priority / Nice to Have
 - [ ] **Lighthouse BP/SEO floor** — relative gate can ratchet down across merged-on-red PRs; consider `min(95, baseline)` floor or a warning _(Source: pilot final review I4, Brian to decide)_
 - [ ] **Review minors** — import STAGING_ROBOTS from the Worker; rollback when promote fails after applying; check package.json tag = workflow pin; exclude family subdomains in link check; fix stale site-weekly comment; pin third-party actions by SHA; toolchain-bump version validation; .well-known smoke on PR preview; Link alternate keeps query string _(Source: both reviews)_
+- [ ] **Lighthouse Performance gate flakes on third-party-heavy pages** — KingFamily /referrals/ went 69/73/62 vs baseline 71/71/74 across runs; local Lighthouse showed 6-11 s stalls where every in-flight CDN/Google Fonts request finishes together, reproduced with no Worker in front. Median of 3 is not enough; consider more runs, interleaving baseline/candidate, or judging on LCP/TBT _(Source: wave 3 PR #1)_
 - [ ] **Visual threshold** — pixelmatch 0.1 absorbed a footer opacity change; consider a lower threshold for colour-sensitive pages _(Source: pilot findings)_
 - [ ] **Identify the zone bot-challenge feature** — Security → Events _(Source: pilot findings Q1)_
 - [ ] **Contact-form dead client code** — `contact-form.js` targets `#myForm` (form is `#fs-frm`) so Submit throws; reCAPTCHA script CSP-blocked with no widget (KingFamily, likely BrianBK.ing/JillK.ing) _(Source: wave 3 planning)_
