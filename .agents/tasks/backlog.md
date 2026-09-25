@@ -13,12 +13,13 @@ _Updated: 2026-09-23 (after pilot)_
 
 ## Planned
 
+- [ ] **Wave 4: BrianBK.ing + JillK.ing + site-pipeline v1.2.0** — `PRIVATE_PATHS` (résumé 404 on previews), `build:pdf` + `pdf-links`, a11y fixes, contact subject host, `_headers` Links; delete stale `brianbking.pages.dev` — [plan](../plans/2026-09-25-site-pipeline-wave4-brianbking-jillking.md) _(Source: spec rollout)_
+
 ---
 
 ## Backlog
 
 ### High Priority
-- [ ] **Wave 4: BrianBK.ing + JillK.ing** — adds résumé PDF build step; fix `_headers` `kingfamily.info` Links; delete stale `brianbking.pages.dev` _(Source: spec rollout)_
 - [ ] **Wave 5: MasonBK.ing** — Pages → Workers in the M@sonBK.ing account; fix `robots.txt` sitemap host; decide `.md` for `/family/`, `/friends/` _(Source: spec rollout)_
 
 ### Medium Priority
