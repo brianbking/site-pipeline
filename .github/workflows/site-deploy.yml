@@ -99,6 +99,9 @@ jobs:
         run: |
           git config core.quotepath false
           hugo --gc --minify
+          # A site that ships generated files (the resume PDF) defines build:pdf. The pdf-links offline
+          # check fails the run if a linked PDF is still missing afterwards.
+          npm run build:pdf --if-present
 
       - name: Offline checks
         run: node .site-pipeline/checks/cli.mjs offline --dir public --host "$HOST"

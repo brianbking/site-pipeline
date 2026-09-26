@@ -216,3 +216,31 @@ describe("md-siblings", () => {
     ]);
   });
 });
+
+describe("pdf-links", () => {
+  it("flags a same-site PDF link with no file in the build", async () => {
+    const dir = site({ "about/index.html": '<!doctype html><title>About</title><a href="/files/cv.pdf">CV</a>' });
+    expect(await run("pdf-links", dir)).toEqual([
+      { check: "pdf-links", file: "about/index.html", message: "links /files/cv.pdf, which is not in the build" },
+    ]);
+  });
+
+  it("passes absolute own-host, root-relative and page-relative PDF links that are built", async () => {
+    const dir = site({
+      "about/index.html": `<a href=https://${HOST}/files/cv.pdf>a</a><a href="../files/cv.pdf">b</a><link rel=alternate type=application/pdf href="cv.pdf">`,
+      "files/cv.pdf": "%PDF",
+      "about/cv.pdf": "%PDF",
+    });
+    expect(await run("pdf-links", dir)).toEqual([]);
+  });
+
+  it("ignores other hosts and links that are not PDFs", async () => {
+    const dir = site({ "about/index.html": '<a href="https://other.test/x.pdf">x</a><a href="/missing/">y</a>' });
+    expect(await run("pdf-links", dir)).toEqual([]);
+  });
+
+  it("reports a missing PDF once per page", async () => {
+    const dir = site({ "about/index.html": '<a href="/cv.pdf">a</a><a href="/cv.pdf">b</a>' });
+    expect(await run("pdf-links", dir)).toHaveLength(1);
+  });
+});

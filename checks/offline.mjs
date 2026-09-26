@@ -295,6 +295,35 @@ export function checkFormspree({ dir, formspreeId }) {
   return [...failures, ...cspBlocksFormspree(dir)];
 }
 
+/**
+ * Every same-site link to a PDF in the built HTML (<a href>, <link href>) has a file in the build:
+ * catches a PDF the build step failed to generate, or a template pointing at the wrong name.
+ * minimal: PDFs only; upgrade path is every same-site href (the spec's lychee --offline check).
+ */
+export function checkPdfLinks({ dir, host }) {
+  const failures = [];
+  for (const rel of readdirSync(dir, { recursive: true })) {
+    const path = String(rel).split("\\").join("/");
+    if (!path.endsWith(".html")) continue;
+    const page = new URL(path.replace(/(^|\/)index\.html$/, "$1"), `https://${host}/`);
+    const seen = new Set();
+    for (const [tag] of (readText(dir, path) ?? "").matchAll(/<(?:a|link)\b[^>]*>/gi)) {
+      const href = attr(tag, "href");
+      if (!href) continue;
+      let url;
+      try {
+        url = new URL(href, page);
+      } catch {
+        continue; // not a URL; other checks own malformed markup
+      }
+      if (url.hostname !== host || !/\.pdf$/i.test(url.pathname) || seen.has(url.pathname)) continue;
+      seen.add(url.pathname);
+      if (!resolveUrlPath(dir, url.pathname)) failures.push(fail("pdf-links", path, `links ${url.pathname}, which is not in the build`));
+    }
+  }
+  return failures;
+}
+
 export const OFFLINE_CHECKS = {
   headers: checkHeaders,
   llms: checkLlms,
@@ -305,4 +334,5 @@ export const OFFLINE_CHECKS = {
   "md-siblings": checkMdSiblings,
   indexable: checkIndexable,
   formspree: checkFormspree,
+  "pdf-links": checkPdfLinks,
 };

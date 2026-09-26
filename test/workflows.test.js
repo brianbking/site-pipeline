@@ -102,3 +102,9 @@ describe("setup action", () => {
     expect(action).not.toContain("github:brianbking/site-pipeline");
   });
 });
+
+describe("site builds", () => {
+  it.each(["site-pr.yml", "site-deploy.yml"])("%s runs the site's optional build:pdf right after Hugo", (f) => {
+    expect(text(f)).toMatch(/hugo --gc --minify\n(?: +#.*\n)* +npm run build:pdf --if-present\n/);
+  });
+});
