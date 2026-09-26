@@ -5,7 +5,7 @@ import { parseArgs } from "node:util";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { OFFLINE_CHECKS, formspreeForms } from "./offline.mjs";
-import { checkFormspreeCanary, checkNegotiationLive, checkSecurityTxt, checkSmoke, evaluateSecurityTxt } from "./live.mjs";
+import { checkFormspreeCanary, checkNegotiationLive, checkPrivate, checkSecurityTxt, checkSmoke, evaluateSecurityTxt } from "./live.mjs";
 import { evaluateLighthouse, runLighthouse } from "./lighthouse.mjs";
 import { VIEWPORTS, capture, comparePngs, evaluateVisual } from "./visual.mjs";
 import { execFileSync } from "node:child_process";
@@ -24,6 +24,7 @@ const { values: opt } = parseArgs({
     candidate: { type: "string" },
     pages: { type: "string", default: '["/"]' },
     mask: { type: "string", default: "[]" },
+    "private-pages": { type: "string", default: "[]" },
     out: { type: "string", default: "gate-out" },
     json: { type: "string" },
     approved: { type: "boolean", default: false },
@@ -81,9 +82,16 @@ switch (command) {
     report("markdown negotiation", await checkNegotiationLive(opt.base));
     break;
   }
+  case "private": {
+    need("base");
+    const pages = JSON.parse(opt.pages);
+    report(`private paths (${pages.length})`, await checkPrivate(opt.base, { pages }));
+    break;
+  }
   case "smoke": {
     need("base");
-    report(`smoke (${opt.staging ? "staging" : "production"})`, await checkSmoke(opt.base, { pages: JSON.parse(opt.pages), staging: opt.staging }));
+    const privatePages = JSON.parse(opt["private-pages"]);
+    report(`smoke (${opt.staging ? "staging" : "production"})`, await checkSmoke(opt.base, { pages: JSON.parse(opt.pages), privatePages, staging: opt.staging }));
     break;
   }
   case "security-txt": {

@@ -51,11 +51,22 @@ export async function checkNegotiationLive(base, { fetchImpl = fetch, headers = 
   return failures;
 }
 
+/** Private paths (the site's PRIVATE_PATHS) must be 404 on a workers.dev preview: Access gates only the real host. */
+export async function checkPrivate(base, { pages = [], fetchImpl = fetch, headers = {} } = {}) {
+  const failures = [];
+  for (const page of pages) {
+    const url = new URL(page, base).toString();
+    const res = await request(fetchImpl, url, { headers });
+    if (res.status !== 404) failures.push(fail("private", url, `returned ${res.status}; a private path must be 404 on a preview URL`));
+  }
+  return failures;
+}
+
 /**
  * Post-deploy smoke: pages return 200, robots behaviour matches the environment, negotiation works.
  * Production must NOT serve the staging disallow-all robots.txt - that guards against staging config leaking.
  */
-export async function checkSmoke(base, { pages = ["/"], staging = false, fetchImpl = fetch, headers = {} } = {}) {
+export async function checkSmoke(base, { pages = ["/"], privatePages = [], staging = false, fetchImpl = fetch, headers = {} } = {}) {
   const failures = [];
   for (const page of pages) {
     const url = new URL(page, base).toString();
@@ -75,6 +86,7 @@ export async function checkSmoke(base, { pages = ["/"], staging = false, fetchIm
     if (staging && !disallowAll) failures.push(fail("smoke", robotsUrl, "staging robots.txt is not the disallow-all file"));
     if (!staging && disallowAll) failures.push(fail("smoke", robotsUrl, "production robots.txt is the staging disallow-all file"));
   }
+  failures.push(...(await checkPrivate(base, { pages: privatePages, fetchImpl, headers })));
   failures.push(...(await checkNegotiationLive(base, { fetchImpl, headers })));
   return failures;
 }

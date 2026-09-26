@@ -35,7 +35,11 @@ describe("site-pr.yml", () => {
     expect(t).toContain('offline --dir public --host "$HOST" --formspree-id "$FORMSPREE_ID"');
   });
   it("requires every live result file in the summary", () => {
-    expect(text("site-pr.yml")).toContain("--expect 10-offline,20-negotiate,30-visual,40-lighthouse");
+    expect(text("site-pr.yml")).toContain("--expect 10-offline,20-negotiate,25-private,30-visual,40-lighthouse");
+  });
+
+  it("checks the site's private paths are 404 on the preview", () => {
+    expect(text("site-pr.yml")).toContain('private --base "$CANDIDATE" --pages "$PRIVATE_PAGES" --json results/25-private.json');
   });
 });
 
@@ -51,6 +55,10 @@ describe("site-deploy.yml", () => {
     const t = text("site-deploy.yml");
     expect(t).toContain('assert-active --file after.txt --version "$VERSION"');
     expect(t).not.toContain("https://${TARGET_HOST}");
+  });
+
+  it("smoke-checks private paths on the version preview before promotion", () => {
+    expect(text("site-deploy.yml")).toContain('--pages "$SMOKE_PAGES" --private-pages "$PRIVATE_PAGES"');
   });
 });
 

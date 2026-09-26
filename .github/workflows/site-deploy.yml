@@ -20,6 +20,10 @@ on:
       smoke-pages:
         type: string
         default: '["/"]'
+      private-pages:
+        description: JSON array of paths that must be 404 on preview URLs (the site's PRIVATE_PATHS)
+        type: string
+        default: "[]"
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: true
@@ -51,6 +55,7 @@ jobs:
       HOST: ${{ inputs.host }}
       WORKER: ${{ inputs.worker }}
       SMOKE_PAGES: ${{ inputs.smoke-pages }}
+      PRIVATE_PAGES: ${{ inputs.private-pages }}
     steps:
       - name: Validate inputs
         run: |
@@ -121,7 +126,7 @@ jobs:
         run: |
           extra=()
           if [ "$ENVIRONMENT" = staging ]; then extra+=(--staging); fi
-          node .site-pipeline/checks/cli.mjs smoke --base "$PREVIEW" --pages "$SMOKE_PAGES" "${extra[@]}"
+          node .site-pipeline/checks/cli.mjs smoke --base "$PREVIEW" --pages "$SMOKE_PAGES" --private-pages "$PRIVATE_PAGES" "${extra[@]}"
 
       - name: Promote to 100%
         env:

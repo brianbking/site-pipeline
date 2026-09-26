@@ -22,6 +22,10 @@ on:
       lighthouse-pages:
         type: string
         default: '["/"]'
+      private-pages:
+        description: JSON array of paths that must be 404 on preview URLs (the site's PRIVATE_PATHS)
+        type: string
+        default: "[]"
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: true
@@ -146,6 +150,7 @@ jobs:
       VISUAL_PAGES: ${{ inputs.visual-pages }}
       VISUAL_MASK: ${{ inputs.visual-mask }}
       LIGHTHOUSE_PAGES: ${{ inputs.lighthouse-pages }}
+      PRIVATE_PAGES: ${{ inputs.private-pages }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -162,6 +167,10 @@ jobs:
       - name: Markdown negotiation
         continue-on-error: true
         run: node .site-pipeline/checks/cli.mjs negotiate --base "$CANDIDATE" --json results/20-negotiate.json
+
+      - name: Private paths
+        continue-on-error: true
+        run: node .site-pipeline/checks/cli.mjs private --base "$CANDIDATE" --pages "$PRIVATE_PAGES" --json results/25-private.json
 
       - name: Visual regression
         continue-on-error: true
@@ -233,7 +242,7 @@ jobs:
             printf '[{"name":"pipeline jobs","status":"fail","failures":[{"file":"workflow","message":"job(s) did not succeed:%s"}]}]' "$failed" > results/00-jobs.json
           fi
           set +e
-          node .site-pipeline/checks/cli.mjs summary --results results --expect 10-offline,20-negotiate,30-visual,40-lighthouse
+          node .site-pipeline/checks/cli.mjs summary --results results --expect 10-offline,20-negotiate,25-private,30-visual,40-lighthouse
           rc=$?
           { echo; echo "Preview: ${CANDIDATE:-not deployed} · [run]($RUN_URL) · visual diffs are in the \`visual-diffs\` artifact"; } >> results/summary.md
           exit $rc

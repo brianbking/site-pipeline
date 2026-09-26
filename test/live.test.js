@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import worker from "../worker/index.js";
-import { BROWSER_UA, checkNegotiationLive, checkSmoke, checkSecurityTxt, evaluateSecurityTxt } from "../checks/live.mjs";
+import { BROWSER_UA, checkNegotiationLive, checkPrivate, checkSmoke, checkSecurityTxt, evaluateSecurityTxt } from "../checks/live.mjs";
 
 // A fake deployed site: the real Worker in front of a stub assets binding.
 const FILES = {
@@ -8,6 +8,7 @@ const FILES = {
   "/index.md": ["# Home\n", "text/markdown; charset=utf-8"],
   "/about/index.html": ["<!doctype html>", "text/html; charset=utf-8"],
   "/robots.txt": ["User-agent: *\nAllow: /\n", "text/plain"],
+  "/private/index.html": ["<!doctype html>", "text/html; charset=utf-8"],
 };
 const ASSETS = {
   async fetch(input) {
@@ -79,6 +80,26 @@ describe("checkSmoke", () => {
   it("fails a page that does not return 200", async () => {
     const found = await checkSmoke("https://site.test", { pages: ["/gone/"], fetchImpl: deployed() });
     expect(found[0]).toEqual({ check: "smoke", file: "https://site.test/gone/", message: "returned 404" });
+  });
+});
+
+describe("checkPrivate", () => {
+  const PREVIEW = "https://pr-7-site.acct.workers.dev";
+
+  it("passes when every private page is 404 on the preview", async () => {
+    const fetchImpl = deployed({ PRIVATE_PATHS: ["/private"] });
+    expect(await checkPrivate(PREVIEW, { pages: ["/private/", "/private/cv.pdf"], fetchImpl })).toEqual([]);
+  });
+
+  it("fails a private page the preview serves (PRIVATE_PATHS missing, e.g. from env.staging)", async () => {
+    expect(await checkPrivate(PREVIEW, { pages: ["/private/"], fetchImpl: deployed() })).toEqual([
+      { check: "private", file: `${PREVIEW}/private/`, message: "returned 200; a private path must be 404 on a preview URL" },
+    ]);
+  });
+
+  it("is part of the deploy smoke", async () => {
+    const found = await checkSmoke(PREVIEW, { privatePages: ["/private/"], fetchImpl: deployed() });
+    expect(found.map((f) => f.message)).toEqual(["returned 200; a private path must be 404 on a preview URL"]);
   });
 });
 
