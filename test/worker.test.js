@@ -137,3 +137,58 @@ describe("staging", () => {
     expect(res.headers.get("X-Robots-Tag")).toBeNull();
   });
 });
+
+describe("private paths", () => {
+  const PREVIEW = "https://pr-7-brianbking.acct.workers.dev";
+  const FILES = {
+    ...SITE,
+    "/resume/index.html": { body: "<!doctype html><title>CV</title>", type: "text/html; charset=utf-8" },
+    "/resume/index.md": { body: "# CV\n", type: "text/markdown; charset=utf-8" },
+    "/resume/cv.pdf": { body: "%PDF-1.7", type: "application/pdf" },
+    "/resumes/index.html": { body: HTML, type: "text/html; charset=utf-8" },
+  };
+  const at = (url, { method = "GET", accept = BROWSER, env = { PRIVATE_PATHS: ["/resume"] } } = {}) =>
+    worker.fetch(new Request(url, { method, headers: { Accept: accept } }), { ASSETS: makeAssets(FILES), ...env });
+
+  it.each(["/resume/", "/resume", "/resume/cv.pdf", "/RESUME/", "/%72esume/", "//resume/", "/x/../resume/"])(
+    "hides %s on a preview URL",
+    async (path) => {
+      const res = await at(PREVIEW + path);
+      expect(res.status).toBe(404);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+      expect(res.headers.get("Link")).toBeNull();
+      expect(await res.text()).toBe("Not found\n");
+    },
+  );
+
+  it("hides the markdown sibling too", async () => {
+    expect((await at(`${PREVIEW}/resume/`, { accept: "text/markdown" })).status).toBe(404);
+  });
+
+  it("answers HEAD without a body", async () => {
+    const res = await at(`${PREVIEW}/resume/`, { method: "HEAD" });
+    expect(res.status).toBe(404);
+    expect(res.body).toBeNull();
+  });
+
+  it("hides them on a trailing-dot preview hostname", async () => {
+    expect((await at("https://pr-7-brianbking.acct.workers.dev./resume/")).status).toBe(404);
+  });
+
+  it("serves them on the real hostname, where the zone's Access app gates them", async () => {
+    expect((await at("https://brianbk.ing/resume/")).status).toBe(200);
+  });
+
+  it("still serves other pages on the preview, including a prefix look-alike", async () => {
+    expect((await at(`${PREVIEW}/`)).status).toBe(200);
+    expect((await at(`${PREVIEW}/resumes/`)).status).toBe(200);
+  });
+
+  it("accepts a comma-separated string (a dashboard-set variable)", async () => {
+    expect((await at(`${PREVIEW}/resume/`, { env: { PRIVATE_PATHS: "/private, /resume" } })).status).toBe(404);
+  });
+
+  it("serves everything when PRIVATE_PATHS is unset (W3BBK, BBKing, KingFamily)", async () => {
+    expect((await at(`${PREVIEW}/resume/`, { env: {} })).status).toBe(200);
+  });
+});

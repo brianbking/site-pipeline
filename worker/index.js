@@ -3,6 +3,7 @@
 //     and a ~token-count hint.
 // (b) Advertise the Markdown alternate via a Link header on HTML documents.
 // (c) Staging only (env.SITE_ENV === "staging"): noindex everything, block robots.
+// (d) PRIVATE_PATHS: 404 on workers.dev preview URLs (the zone's Access app gates the real host).
 import { prefersMarkdown, mdSiblingPath, estimateTokens } from "./negotiate.js";
 
 // AI-crawler signals attached to served markdown (mirrors site _headers intent).
@@ -12,6 +13,34 @@ const MD_SIGNALS = {
 };
 
 const STAGING_ROBOTS = "User-agent: *\nDisallow: /\n";
+
+/** PRIVATE_PATHS (array, or comma-separated string) -> lowercased prefixes without a trailing slash. */
+function privatePrefixes(value) {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  return list
+    .map((p) => String(p).trim().toLowerCase())
+    .filter(Boolean)
+    .map((p) => (p.startsWith("/") ? p : `/${p}`).replace(/\/+$/, ""));
+}
+
+/**
+ * True when this request must not be served: its path is under a PRIVATE_PATHS prefix and it
+ * arrived on a workers.dev host (a version or PR preview URL), which the zone's Access app
+ * does not cover. The real hostnames stay behind Access, so they are served as usual.
+ */
+function isPrivateRequest(url, env) {
+  const prefixes = privatePrefixes(env.PRIVATE_PATHS);
+  if (prefixes.length === 0) return false;
+  if (!url.hostname.replace(/\.$/, "").endsWith(".workers.dev")) return false;
+  let path;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    return true; // undecodable path: refuse rather than guess what the assets layer would serve
+  }
+  path = path.toLowerCase().replace(/\/{2,}/g, "/");
+  return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
+}
 
 /** Absolute URL of the Markdown sibling for a request URL, or null. */
 function mdUrlFor(requestUrl) {
@@ -35,6 +64,14 @@ export async function handle(request, env) {
   const method = request.method;
   const accept = request.headers.get("Accept") || "";
   const mdUrl = mdUrlFor(request.url);
+
+  // Before negotiation, so neither the page nor its markdown sibling leaks on a preview URL.
+  if (isPrivateRequest(new URL(request.url), env)) {
+    return new Response(method === "HEAD" ? null : "Not found\n", {
+      status: 404,
+      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }
 
   if (env.SITE_ENV === "staging" && new URL(request.url).pathname === "/robots.txt") {
     return new Response(method === "HEAD" ? null : STAGING_ROBOTS, {
