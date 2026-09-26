@@ -224,6 +224,8 @@ Found while writing and running the plan's code; the plan implements these, not 
 | Wave split | Formspree checks move to the wave 3 plan and the PDF step to wave 4. | The pilot site has neither. |
 | Findings | `_headers` rules **are** applied to `env.ASSETS.fetch` responses (confirmed on the real staging deploy). Full pilot findings: `.agents/findings/2026-09-23-w3bbk-pilot.md`. MasonBK.ing's `robots.txt` names `kingfamily.info` as its sitemap host, and its `/family/` and `/friends/` pages have no `.md` sibling. Both are caught by the offline checks for wave 5. | |
 | Formspree | No `Formspree IDs` workflow input. The PR check reads the site's `params.toml` `formspreeId` via `hugo config`; the weekly canary takes the ID from the built form. BrianBK.ing and KingFamily sharing `mgeggkzw` is intentional (same destination); they can diverge by editing one site's `params.toml`. | One source of truth per site (Brian, wave 3 planning). |
+| Private paths | Opt-in `PRIVATE_PATHS` Worker variable: 404 on `*.workers.dev` for paths a zone Access app gates in production (`/resume` on BrianBK.ing and JillK.ing), proven by a `private-pages` live check on every PR preview and every pre-promotion smoke. | Access doesn't cover preview URLs. Putting Access on them with a CI service token failed in a spike (token refused, 3 runs), and the token would reach third-party hosts through Playwright/Lighthouse headers (Brian, wave 4 planning). |
+| PDF | No `pdf: true` input. An optional site npm script, `build:pdf`, runs after Hugo in PR and deploy builds, and the offline `pdf-links` check fails a build with a linked PDF missing. | One convention with no configuration; fails closed through the page's own link. |
 
 ## Out of scope
 

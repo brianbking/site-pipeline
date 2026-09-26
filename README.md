@@ -21,8 +21,8 @@ tag so local `wrangler dev` runs the same Worker.
 
 | Workflow | Inputs |
 |---|---|
-| `site-pr.yml` | `host`, `worker`, `visual-pages`, `visual-mask`, `lighthouse-pages` (JSON arrays) |
-| `site-deploy.yml` | `environment` (`staging`/`production`), `host`, `worker`, `smoke-pages` |
+| `site-pr.yml` | `host`, `worker`, `visual-pages`, `visual-mask`, `lighthouse-pages`, `private-pages` (JSON arrays) |
+| `site-deploy.yml` | `environment` (`staging`/`production`), `host`, `worker`, `smoke-pages`, `private-pages` |
 | `site-weekly.yml` | `host`, `link-exclude` (space-separated lychee regexes) |
 
 Secrets (repo **and** Dependabot): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
@@ -33,6 +33,17 @@ action is malformed, `email`/`message` are not required, or a CSP `form-action` 
 `site-weekly.yml` sends one real submission (subject `[CI canary] <host>`) to each ID found in the
 built forms. A form with reCAPTCHA on refuses that post ("Please complete the reCAPTCHA"), which
 still counts as a pass: it proves the form exists and is enabled. Sites without a form skip both.
+
+**Private paths.** A path a zone Access app gates in production (e.g. `/resume`) must be listed in
+the site's `wrangler.jsonc` as `PRIVATE_PATHS`, both in `vars` and in `env.staging.vars`, because
+wrangler does not inherit `vars` into environments. The Worker answers 404 for those paths on any
+`*.workers.dev` host, since Access does not cover preview URLs. List the same paths, plus any file
+under them, in the `private-pages` input of `pr.yml` and `deploy.yml`. The PR checks and the
+pre-promotion smoke then prove the 404.
+
+**Generated files.** A site that generates files after Hugo (the résumé PDF) defines an npm script
+`build:pdf`. The PR and deploy builds run it after Hugo, and a failure fails the build. The offline
+`pdf-links` check fails any build in which a same-site `.pdf` link has no file.
 
 ## Development
 
