@@ -150,7 +150,13 @@ describe("private paths", () => {
   const at = (url, { method = "GET", accept = BROWSER, env = { PRIVATE_PATHS: ["/resume"] } } = {}) =>
     worker.fetch(new Request(url, { method, headers: { Accept: accept } }), { ASSETS: makeAssets(FILES), ...env });
 
-  it.each(["/resume/", "/resume", "/resume/cv.pdf", "/RESUME/", "/%72esume/", "//resume/", "/x/../resume/"])(
+  it.each([
+    "/resume/", "/resume", "/resume/cv.pdf", "/RESUME/", "/%72esume/", "//resume/", "/x/../resume/",
+    // Encoded dot segments and backslashes decode to paths the assets layer could normalise differently.
+    "/x/..%2Fresume/", "/.%2Fresume/", "/x/..%5Cresume/",
+    // Undecodable: refused rather than guessed.
+    "/resume%E0/", "/%72esume/%E0",
+  ])(
     "hides %s on a preview URL",
     async (path) => {
       const res = await at(PREVIEW + path);

@@ -39,6 +39,9 @@ function isPrivateRequest(url, env) {
     return true; // undecodable path: refuse rather than guess what the assets layer would serve
   }
   path = path.toLowerCase().replace(/\/{2,}/g, "/");
+  // A dot segment or backslash surviving decoding (/x/..%2Fresume/) matches no prefix here but could be
+  // normalised onto one by the assets layer; no real page needs either, so refuse instead of relying on it.
+  if (/(^|\/)\.\.?(\/|$)|\\/.test(path)) return true;
   return prefixes.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
